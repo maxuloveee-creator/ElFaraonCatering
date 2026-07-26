@@ -34,6 +34,7 @@ interface AdminSessionContext {
     focus?: RenderFocusMode,
   ): Promise<AdminOperationalState>;
   renderCurrentView(options?: RenderOptions): void;
+  resetPublicationState(): void;
   runBusy(action: () => Promise<void>, busyText?: string): Promise<void>;
   setAdminState(state: AdminOperationalState | null): void;
   setStatus(text: string, tone: StatusTone): void;
@@ -165,6 +166,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
   async function logout(): Promise<void> {
     const session = currentSession;
     clearStoredSession();
+    context.resetPublicationState();
     currentSession = null;
     context.setAdminState(null);
     authView = "login";
@@ -208,6 +210,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
 
     if (!refreshedSession) {
       clearStoredSession();
+      context.resetPublicationState();
       return null;
     }
 

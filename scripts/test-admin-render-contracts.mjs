@@ -510,7 +510,7 @@ test("service view exposes daily menu and fixed price contracts", () => {
   assert.ok(hasForm(html, adminForms.fixedPrice));
 });
 
-test("publish banner shows publish only when publication is pending and not requested", () => {
+test("publish banner keeps publication actionable while a request is pending", () => {
   const pendingState = createState({
     publication: {
       has_unpublished_changes: true,
@@ -534,7 +534,8 @@ test("publish banner shows publish only when publication is pending and not requ
   });
 
   assert.ok(hasAction(renderShell(pendingState), adminActions.publish));
-  assert.equal(hasAction(renderShell(requestedState), adminActions.publish), false);
+  assert.ok(hasAction(renderShell(requestedState), adminActions.publish));
+  assert.ok(renderShell(requestedState).includes("Reintentar publicación"));
   assert.equal(hasAction(renderShell(deniedState), adminActions.publish), false);
 });
 

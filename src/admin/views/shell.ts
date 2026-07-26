@@ -65,11 +65,11 @@ function renderPublishBanner(state: AdminOperationalState, isBusy: boolean): str
   return `
     <div class="admin-banner">
       <span>${state.publication.publish_requested
-        ? "Publicación en curso. Los cambios se están subiendo al menú. (Recargá esta página 'admin' en 30 segundos para actualizar el estado.)"
+        ? "Publicación en curso. Los cambios se están subiendo al menú. Si no termina, podés reintentar en un minuto."
         : "Falta publicar: hay cambios guardados pendientes"}</span>
-      ${state.publication.publish_requested
-        ? ""
-        : `<button class="admin-button" type="button" data-admin-action="${adminActions.publish}" ${disabledAttr(isBusy)}>Publicar ahora</button>`}
+      <button class="admin-button" type="button" data-admin-action="${adminActions.publish}" ${disabledAttr(isBusy)}>${state.publication.publish_requested
+        ? "Reintentar publicación"
+        : "Publicar ahora"}</button>
     </div>
   `;
 }
