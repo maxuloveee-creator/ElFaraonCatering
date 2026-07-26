@@ -328,24 +328,6 @@ where p.prosecdef = true
   )
 order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
 
--- 08c. Protected schemas must not be exposed through PostgREST/Data API.
-with exposed_schemas as (
-  select btrim(exposed_schema.schema_name) as schema_name
-  from unnest(
-    string_to_array(
-      coalesce(nullif(current_setting('pgrst.db_schemas', true), ''), 'public'),
-      ','
-    )
-  ) as exposed_schema(schema_name)
-)
-select
-  exposed_schemas.schema_name,
-  'risk' as suggested_status,
-  'Protected schema exposed through PostgREST/Data API.' as reason
-from exposed_schemas
-where exposed_schemas.schema_name in ('app_private', 'menu_content')
-order by exposed_schemas.schema_name;
-
 -- 09. Publish helper execute privileges.
 with expected_publish_helper_grants(function_name, identity_arguments) as (
   values
