@@ -21,7 +21,7 @@ El sitio usa Astro con output estatico en Vercel. Supabase tiene dos responsabil
 
 El contenido build-time incluye menu del dia, servicio activo por local, parrilla, catalogo fijo, opciones, precios, imagenes y textos estructurales. La disponibilidad es individual por local/menu; si no existe un overlay, el item se considera disponible.
 
-`/admin/` usa Supabase Auth, lee mediante `get_admin_operational_state()` y escribe mediante RPCs controladas. Permite administrar disponibilidad, servicio del dia, parrilla, contenido del menu fijo, opciones, precios y publicacion. No es un CMS institucional ni una interfaz de gestion de empleados.
+`/admin/` usa Supabase Auth, lee mediante `get_admin_operational_state()` y escribe mediante RPCs controladas. Permite administrar disponibilidad, servicio del dia, parrilla, contenido del menu fijo, opciones, precios y publicacion. No es un CMS institucional ni una interfaz de gestion de empleados
 
 Los cambios de disponibilidad impactan en runtime. Los demas cambios del admin necesitan un nuevo build/deploy. La Edge Function `publish-menu-changes` es el puente entre el admin y el Vercel Deploy Hook; el hook y las credenciales de servicio nunca llegan al navegador.
 
