@@ -8,17 +8,19 @@ const privateDatabaseUrlEnvNames = [
   ["SUPABASE", "DB", "URL"].join("_"),
   ["SUPABASE", "AUDIT", "DB", "URL"].join("_"),
 ];
+const privateDeployHookEnvName = ["VERCEL", "DEPLOY", "HOOK", "URL"].join("_");
+const privateEnvNames = [...privateDatabaseUrlEnvNames, privateDeployHookEnvName];
 
 loadLocalEnv(rootDir);
 
 const sensitiveNamePattern = new RegExp(
-  `(?:${privateDatabaseUrlEnvNames.join("|")}|DATABASE_URL|POSTGRES|SERVICE_ROLE|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|AUTH)`,
+  `(?:${privateEnvNames.join("|")}|DATABASE_URL|POSTGRES|SERVICE_ROLE|SECRET|TOKEN|PASSWORD|PRIVATE|CREDENTIAL|API_KEY|AUTH)`,
   "i",
 );
 
 const markers = [
-  ...privateDatabaseUrlEnvNames.map((value) => ({
-    label: "private database URL marker",
+  ...privateEnvNames.map((value) => ({
+    label: "private environment variable marker",
     value,
   })),
   ...Object.entries(process.env)
@@ -55,6 +57,9 @@ const forbiddenRuntimeMarkers = [
   "menu_prices",
   "menu_price_variants",
 ];
+const forbiddenSecretMarkers = [
+  "api.vercel.com/v1/integrations/deploy/",
+];
 
 try {
   await stat(distDir);
@@ -83,6 +88,15 @@ for (const filePath of files) {
       findings.push({
         filePath,
         label: `runtime structural query marker: ${marker}`,
+      });
+    }
+  }
+
+  for (const marker of forbiddenSecretMarkers) {
+    if (content.includes(Buffer.from(marker))) {
+      findings.push({
+        filePath,
+        label: `secret URL marker: ${marker}`,
       });
     }
   }

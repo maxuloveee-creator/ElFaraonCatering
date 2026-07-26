@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 import { loadLocalEnv } from "./load-local-env.mjs";
+import { auditProtectedSchemasNotExposed } from "./supabase-platform-audit.mjs";
 
 const privateAuditDatabaseUrlEnvName = ["SUPABASE", "AUDIT", "DB", "URL"].join("_");
+const publicSupabaseUrlEnvName = "PUBLIC_SUPABASE_URL";
+const publicSupabaseAnonKeyEnvName = "PUBLIC_SUPABASE_ANON_KEY";
 const auditFiles = [
   "docs/supabase/audits/menu-schema-audit.sql",
   "docs/supabase/audits/database-audit.sql",
@@ -13,9 +16,16 @@ const successStatuses = new Set(["keep", "present"]);
 loadLocalEnv();
 
 const databaseUrl = process.env[privateAuditDatabaseUrlEnvName];
+const publicSupabaseUrl = process.env[publicSupabaseUrlEnvName]?.trim();
+const publicSupabaseAnonKey = process.env[publicSupabaseAnonKeyEnvName]?.trim();
 
 if (!databaseUrl) {
   console.error("Private Supabase audit database URL is required for Supabase audits.");
+  process.exit(1);
+}
+
+if (!publicSupabaseUrl || !publicSupabaseAnonKey) {
+  console.error("Public Supabase URL and anon key are required for Data API exposure audits.");
   process.exit(1);
 }
 
@@ -30,6 +40,11 @@ try {
   for (const auditFile of auditFiles) {
     await runAuditFile(auditFile, failures);
   }
+
+  failures.push(...(await auditProtectedSchemasNotExposed({
+    supabaseUrl: publicSupabaseUrl,
+    supabaseAnonKey: publicSupabaseAnonKey,
+  })));
 } finally {
   await sql.end();
 }
@@ -44,7 +59,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Supabase read-only audit passed for ${auditFiles.length} files.`);
+console.log(`Supabase read-only audit passed for ${auditFiles.length} files and the Data API exposure guard.`);
 
 async function runAuditFile(auditFile, failures) {
   const auditPath = path.resolve(auditFile);
@@ -220,5 +235,7 @@ function formatRow(row) {
 function sanitizeError(error) {
   const message = error instanceof Error ? error.message : String(error);
 
-  return message.replaceAll(databaseUrl, "[redacted]");
+  return message
+    .replaceAll(databaseUrl, "[redacted]")
+    .replaceAll(publicSupabaseAnonKey, "[redacted]");
 }

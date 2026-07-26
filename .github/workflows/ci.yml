@@ -44,6 +44,9 @@ jobs:
       - name: Test menu availability overlay
         run: npm run test:menu
 
+      - name: Test handoff guards
+        run: npm run test:tools
+
   production:
     name: Production build
     if: >-
@@ -81,4 +84,6 @@ jobs:
         run: npm run build
 
       - name: Verify dist secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npm run verify:dist-secrets

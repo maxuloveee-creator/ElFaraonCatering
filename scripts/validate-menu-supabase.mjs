@@ -395,12 +395,30 @@ async function validateSchema(sql, errors) {
     }
   }
 
+  const catalogVisibilityRows = await sql`
+    select relation.relname as table_name
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'staff_users'
+      and relation.relkind in ('r', 'p')
+  `;
+
+  if (catalogVisibilityRows.length !== 1) {
+    errors.push("Postgres catalog visibility canary failed for public.staff_users.");
+  }
+
   const retiredTableRows = await sql`
-    select table_name
-    from information_schema.tables
-    where table_schema = 'menu_content'
-      and table_type = 'BASE TABLE'
-      and table_name in ${sql(retiredTables)}
+    select
+      namespace.nspname as table_schema,
+      relation.relname as table_name
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'menu_content'
+      and relation.relkind in ('r', 'p')
+      and relation.relname in ${sql(retiredTables)}
   `;
 
   for (const row of retiredTableRows) {
@@ -408,24 +426,36 @@ async function validateSchema(sql, errors) {
   }
 
   const retiredColumnRows = await sql`
-    select table_schema, table_name, column_name
-    from information_schema.columns
+    select
+      namespace.nspname as table_schema,
+      relation.relname as table_name,
+      attribute.attname as column_name
+    from pg_catalog.pg_attribute attribute
+    join pg_catalog.pg_class relation
+      on relation.oid = attribute.attrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
     where (
-      table_schema = 'menu_content'
-      and (
-        (table_name = 'menu_catalog_sections' and column_name = 'content_kind')
-        or (table_name = 'menu_catalog_items' and column_name = 'group_id')
-        or (
-          table_name in ('menu_catalog_items', 'menu_daily_items', 'menu_grill_catalog_items')
-          and column_name = 'image_path'
+      (
+        namespace.nspname = 'menu_content'
+        and (
+          (relation.relname = 'menu_catalog_sections' and attribute.attname = 'content_kind')
+          or (relation.relname = 'menu_catalog_items' and attribute.attname = 'group_id')
+          or (
+            relation.relname in ('menu_catalog_items', 'menu_daily_items', 'menu_grill_catalog_items')
+            and attribute.attname = 'image_path'
+          )
         )
       )
+      or (
+        namespace.nspname = 'public'
+        and relation.relname = 'menu_availability_overlays'
+        and attribute.attname = 'group_id'
+      )
     )
-    or (
-      table_schema = 'public'
-      and table_name = 'menu_availability_overlays'
-      and column_name = 'group_id'
-    )
+    and attribute.attnum > 0
+    and not attribute.attisdropped
+    and relation.relkind in ('r', 'p')
   `;
 
   for (const row of retiredColumnRows) {
