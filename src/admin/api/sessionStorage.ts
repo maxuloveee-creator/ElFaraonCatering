@@ -52,22 +52,31 @@ export function getPasswordRedirectUrl(): string {
 
 export function readPasswordSessionFromLocation(): AuthSession | null {
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const params = hashParams.has("access_token") ? hashParams : new URLSearchParams(window.location.search);
-  const type = params.get("type");
+  const queryParams = new URLSearchParams(window.location.search);
+  const hasSensitiveQueryParams = queryParams.has("access_token") || queryParams.has("refresh_token");
+  const hasAuthHashParams =
+    hashParams.has("access_token")
+    || hashParams.has("refresh_token")
+    || hashParams.get("type") === "recovery"
+    || hashParams.get("type") === "invite";
+
+  if (hasSensitiveQueryParams || hasAuthHashParams) {
+    window.history.replaceState({}, document.title, getPasswordRedirectUrl());
+  }
+
+  const type = hashParams.get("type");
 
   if (type !== "recovery" && type !== "invite") {
     return null;
   }
 
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-  const expiresIn = Number(params.get("expires_in") ?? "3600");
+  const accessToken = hashParams.get("access_token");
+  const refreshToken = hashParams.get("refresh_token");
+  const expiresIn = Number(hashParams.get("expires_in") ?? "3600");
 
-  if (!accessToken || !refreshToken || !Number.isFinite(expiresIn)) {
+  if (!accessToken || !refreshToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
     return null;
   }
-
-  window.history.replaceState({}, document.title, getPasswordRedirectUrl());
 
   return {
     accessToken,

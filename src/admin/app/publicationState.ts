@@ -5,12 +5,22 @@ const requestedPublishHashStorageKey = "el-faraon-admin-requested-publish-hash";
 const publishCooldownStorageKey = "el-faraon-admin-publish-cooldown-ends-at";
 const defaultPublishCooldownSeconds = 60;
 
+interface RequestedPublication {
+  contentHash: string;
+  expiresAt: number;
+}
+
 export function createAdminPublicationState(deployedContentHash: string) {
-  let requestedPublishHash = readRequestedPublishHash();
+  let requestedPublication = readRequestedPublication();
   let publishCooldownEndsAt = readPublishCooldownEndsAt();
 
   function getRequestedPublishHash(): string {
-    return requestedPublishHash;
+    if (!requestedPublication || requestedPublication.expiresAt <= Date.now()) {
+      clearRequestedPublication();
+      return "";
+    }
+
+    return requestedPublication.contentHash;
   }
 
   function markCurrentPublicationRequested(state: AdminOperationalState | null): void {
@@ -20,8 +30,15 @@ export function createAdminPublicationState(deployedContentHash: string) {
       return;
     }
 
-    requestedPublishHash = contentHash;
-    window.sessionStorage.setItem(requestedPublishHashStorageKey, contentHash);
+    const expiresAt = publishCooldownEndsAt > Date.now()
+      ? publishCooldownEndsAt
+      : Date.now() + (defaultPublishCooldownSeconds * 1000);
+
+    requestedPublication = { contentHash, expiresAt };
+    window.sessionStorage.setItem(
+      requestedPublishHashStorageKey,
+      JSON.stringify(requestedPublication),
+    );
   }
 
   function rememberPublishCooldown(result: RpcResult): void {
@@ -49,8 +66,12 @@ export function createAdminPublicationState(deployedContentHash: string) {
   }
 
   function reconcileState(state: AdminOperationalState): AdminOperationalState {
+    const requestedPublishHash = getRequestedPublishHash();
+
     if (!requestedPublishHash) {
-      return state;
+      return state.publication.publish_requested
+        ? normalizeAdminState(state, deployedContentHash, "")
+        : state;
     }
 
     const currentContentHash = state.publication.current_content_hash;
@@ -60,9 +81,19 @@ export function createAdminPublicationState(deployedContentHash: string) {
       return state;
     }
 
-    requestedPublishHash = "";
+    clearRequestedPublication();
+    return normalizeAdminState(state, deployedContentHash, "");
+  }
+
+  function reset(): void {
+    clearRequestedPublication();
+    publishCooldownEndsAt = 0;
+    window.localStorage.removeItem(publishCooldownStorageKey);
+  }
+
+  function clearRequestedPublication(): void {
+    requestedPublication = null;
     window.sessionStorage.removeItem(requestedPublishHashStorageKey);
-    return normalizeAdminState(state, deployedContentHash, requestedPublishHash);
   }
 
   return {
@@ -71,11 +102,36 @@ export function createAdminPublicationState(deployedContentHash: string) {
     markCurrentPublicationRequested,
     reconcileState,
     rememberPublishCooldown,
+    reset,
   };
 }
 
-function readRequestedPublishHash(): string {
-  return window.sessionStorage.getItem(requestedPublishHashStorageKey) ?? "";
+function readRequestedPublication(): RequestedPublication | null {
+  const value = window.sessionStorage.getItem(requestedPublishHashStorageKey);
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsedValue: unknown = JSON.parse(value);
+
+    if (
+      parsedValue
+      && typeof parsedValue === "object"
+      && typeof (parsedValue as RequestedPublication).contentHash === "string"
+      && /^[a-f0-9]{32}$/.test((parsedValue as RequestedPublication).contentHash)
+      && Number.isSafeInteger((parsedValue as RequestedPublication).expiresAt)
+      && (parsedValue as RequestedPublication).expiresAt > Date.now()
+    ) {
+      return parsedValue as RequestedPublication;
+    }
+  } catch {
+    // Legacy values stored only the content hash and must not keep the UI latched.
+  }
+
+  window.sessionStorage.removeItem(requestedPublishHashStorageKey);
+  return null;
 }
 
 function readPublishCooldownEndsAt(): number {

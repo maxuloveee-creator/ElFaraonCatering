@@ -9,8 +9,8 @@ export function createPublishOperations(context: AdminOperationContext) {
         const result = await context.publishMenuChanges(session);
 
         if (result.message === "publish_queued") {
-          context.markCurrentPublicationRequested();
           context.rememberPublishCooldown(result);
+          context.markCurrentPublicationRequested();
           await context.loadAdminState(
             "Publicación en curso. Si hacés nuevos cambios, vas a poder publicarlos después.",
             "success",

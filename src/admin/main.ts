@@ -61,6 +61,7 @@ const sessionController = createAdminSessionController({
   hasApiConfig: Boolean(supabaseUrl && supabaseAnonKey),
   loadAdminState,
   renderCurrentView,
+  resetPublicationState: publicationState.reset,
   runBusy,
   setAdminState,
   setStatus,
