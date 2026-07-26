@@ -26,21 +26,21 @@
     "supabase:functions:deploy": "supabase functions deploy publish-menu-changes --use-api --no-verify-jwt"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.1",
+    "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.1.3",
     "tailwindcss": "^4.3.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.6.0",
+    "eslint": "^10.8.0",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
     "postgres": "^3.4.9",
-    "supabase": "^2.108.0",
+    "supabase": "^2.109.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.63.0",
-    "vite": "^8.1.0"
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.1.5"
   },
   "overrides": {
     "ajv": "^8.20.0",
