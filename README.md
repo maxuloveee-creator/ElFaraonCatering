@@ -85,16 +85,17 @@ Las variables `PUBLIC_*` son intencionalmente visibles para el cliente. `SUPABAS
 | Script | Uso |
 | --- | --- |
 | `npm run dev` | Levanta Astro en desarrollo. |
-| `npm run build` | Genera `dist/` con contenido leido de `menu_content`. Requiere `SUPABASE_DB_URL`. |
+| `npm run build` | Genera `dist/` con contenido leido de `menu_content`. Requiere `SUPABASE_DB_URL` y las dos variables `PUBLIC_SUPABASE_*`. |
 | `npm run preview` | Sirve el build local. |
 | `npm run check` | Ejecuta `astro check`. |
 | `npm run check:js` | Valida sintaxis de JS/MJS fuera del typecheck de Astro. |
 | `npm run lint` | Ejecuta ESLint. |
 | `npm run test:admin` | Prueba reglas, render y operaciones del admin. |
 | `npm run test:menu` | Prueba el overlay publico de disponibilidad. |
+| `npm run test:tools` | Prueba los guardas de entorno, secretos y exposicion del Data API. |
 | `npm run menu:validate` | Valida contenido y hardening esperado en Supabase. Requiere `SUPABASE_DB_URL`. |
 | `npm run verify:dist-secrets` | Revisa un `dist/` ya generado en busca de marcadores de secretos. |
-| `npm run supabase:audit` | Ejecuta auditorias SQL read-only. Requiere `SUPABASE_AUDIT_DB_URL`. |
+| `npm run supabase:audit` | Ejecuta auditorias SQL y probes read-only del Data API. Requiere `SUPABASE_AUDIT_DB_URL` y las dos variables `PUBLIC_SUPABASE_*`. |
 
 ### Imagenes fuente del menu
 
@@ -120,6 +121,7 @@ Para cambios de aplicacion, seleccionar los checks segun la superficie:
 ```bash
 npm run test:admin
 npm run test:menu
+npm run test:tools
 npm run check:js
 npm run lint
 npm run check

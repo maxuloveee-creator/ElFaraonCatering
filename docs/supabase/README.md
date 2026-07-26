@@ -55,8 +55,8 @@ El baseline es solo para bases nuevas. No debe aplicarse sobre una base existent
 
 ### Aplicacion, build y auditorias
 
-- `PUBLIC_SUPABASE_URL`: URL publica para overlay, Auth y RPCs controladas.
-- `PUBLIC_SUPABASE_ANON_KEY`: anon key publica para el navegador.
+- `PUBLIC_SUPABASE_URL`: URL publica para overlay, Auth, RPCs controladas y probes read-only de exposicion del Data API.
+- `PUBLIC_SUPABASE_ANON_KEY`: anon key publica para el navegador y los probes read-only de exposicion del Data API.
 - `SUPABASE_DB_URL`: conexion Postgres privada con el rol minimo `menu_build_ci` para build y validacion.
 - `SUPABASE_AUDIT_DB_URL`: conexion Postgres privada y privilegiada solo para auditorias locales.
 - `SUPABASE_ACCESS_TOKEN`: token local opcional para Management API/CLI; no pertenece al sitio ni a Functions.
@@ -76,18 +76,23 @@ El baseline es solo para bases nuevas. No debe aplicarse sobre una base existent
 
 ## Validacion local y read-only
 
-Antes de considerar una mutacion remota, ejecutar las auditorias contra `SUPABASE_AUDIT_DB_URL` y las validaciones/builds contra `SUPABASE_DB_URL`:
+Antes de considerar una mutacion remota, ejecutar las auditorias SQL contra `SUPABASE_AUDIT_DB_URL`, los probes del Data API con las dos variables `PUBLIC_SUPABASE_*` y las validaciones/builds contra `SUPABASE_DB_URL`:
 
 ```bash
+npm audit --audit-level=high
 npm run supabase:audit
 npm run menu:validate
 npm run check:js
+npm run lint
+npm run test:admin
+npm run test:menu
+npm run test:tools
+npm run check
 npm run build
 npm run verify:dist-secrets
-npm run check
 ```
 
-`npm run build` debe ejecutarse antes de `npm run verify:dist-secrets`; el verificador necesita que `dist/` exista.
+`npm run build` debe ejecutarse antes de `npm run verify:dist-secrets`; el verificador necesita que `dist/` exista. El build falla si falta cualquiera de las dos variables `PUBLIC_SUPABASE_*`, y el audit falla si `app_private` o `menu_content` no responden como esquemas fuera del Data API.
 
 Para una auditoria de plataforma mas amplia:
 
