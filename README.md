@@ -2,6 +2,8 @@
 
 Menu digital QR para los buffets operados por **El Faraon Catering** en los dos edificios de **Telefe**. La experiencia publica es rapida, mobile-first e informativa: no incluye pedidos, pagos, reservas, carrito ni cuentas de clientes. Los enlaces de WhatsApp, cuando existen, son solo vias de contacto.
 
+Produccion: [elfaraoncatering.com.ar](https://elfaraoncatering.com.ar). El dominio `www` redirige al dominio canonico sin `www`.
+
 ## Superficies activas
 
 - `/`: landing institucional publica.
@@ -161,3 +163,5 @@ Los cambios de schema, permisos o contenido build-time siguen la secuencia read-
 ## Despliegue
 
 El deploy de la aplicacion es estatico en Vercel. No hay adapter de servidor, SSR, API routes ni Vercel Functions. La unica funcion server-side del sistema es la Edge Function Supabase `publish-menu-changes`, dedicada a solicitar el rebuild del contenido operativo.
+
+El dominio canonico y unico origen operativo del admin es `https://elfaraoncatering.com.ar`. La configuracion remota de Supabase Auth y el secreto `PUBLISH_ALLOWED_ORIGINS` deben mantenerse alineados con `supabase/config.toml` y `.env.example`.

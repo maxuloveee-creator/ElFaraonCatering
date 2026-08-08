@@ -73,6 +73,7 @@ admin-auth-state.json
 .cache/
 .codex/
 .codex-doc-review/
+.codex-remote-attachments/
 .claude/
 
 # Agent scratch space
