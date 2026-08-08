@@ -1,9 +1,9 @@
 project_id = "el-faraon"
 
 [auth]
-site_url = "https://elfaraoncatering.vercel.app"
+site_url = "https://elfaraoncatering.com.ar"
 additional_redirect_urls = [
-  "https://elfaraoncatering.vercel.app/admin/",
+  "https://elfaraoncatering.com.ar/admin/",
   "http://localhost:4321/admin/",
 ]
 password_requirements = "letters_digits"

@@ -139,7 +139,7 @@ La creacion del primer admin no se realiza desde browser RLS y `service_role` no
 
 Redirects esperados:
 
-- `https://elfaraoncatering.vercel.app/admin/`
+- `https://elfaraoncatering.com.ar/admin/`
 - `http://localhost:4321/admin/`
 
 Login con un usuario staff existente no necesita crear cuentas temporales. Los flujos de recovery, signup, invitacion, magic link u OTP pueden enviar email real. Probarlos contra el remoto, crear/invitar usuarios y revocarlos o eliminarlos son acciones externas separadas y requieren autorizacion explicita.

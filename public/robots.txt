@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://elfaraoncatering.com.ar/sitemap.xml

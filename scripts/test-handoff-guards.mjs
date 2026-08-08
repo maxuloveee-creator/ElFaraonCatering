@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +9,29 @@ import { auditProtectedSchemasNotExposed } from "./supabase-platform-audit.mjs";
 const repoRoot = process.cwd();
 const buildEnvScript = path.join(repoRoot, "scripts", "validate-build-env.mjs");
 const distSecretsScript = path.join(repoRoot, "scripts", "verify-dist-secrets.mjs");
+const productionOrigin = "https://elfaraoncatering.com.ar";
+
+test("production domain stays aligned across application and Supabase configuration", async () => {
+  const [astroConfig, baseLayout, supabaseConfig, envExample, robots, sitemap] =
+    await Promise.all([
+      readFile(path.join(repoRoot, "astro.config.mjs"), "utf8"),
+      readFile(path.join(repoRoot, "src", "layouts", "BaseLayout.astro"), "utf8"),
+      readFile(path.join(repoRoot, "supabase", "config.toml"), "utf8"),
+      readFile(path.join(repoRoot, ".env.example"), "utf8"),
+      readFile(path.join(repoRoot, "public", "robots.txt"), "utf8"),
+      readFile(path.join(repoRoot, "public", "sitemap.xml"), "utf8"),
+    ]);
+
+  assert.equal(astroConfig.includes(`site: "${productionOrigin}"`), true);
+  assert.match(baseLayout, /rel="canonical"/);
+  assert.match(baseLayout, /property="og:url"/);
+  assert.equal(supabaseConfig.includes(`site_url = "${productionOrigin}"`), true);
+  assert.equal(supabaseConfig.includes(`"${productionOrigin}/admin/"`), true);
+  assert.doesNotMatch(supabaseConfig, /elfaraoncatering\.vercel\.app/);
+  assert.equal(envExample.includes(`PUBLISH_ALLOWED_ORIGINS=${productionOrigin}`), true);
+  assert.equal(robots.includes(`Sitemap: ${productionOrigin}/sitemap.xml`), true);
+  assert.equal(sitemap.includes(`<loc>${productionOrigin}/</loc>`), true);
+});
 
 test("build environment guard requires both public Supabase variables", async () => {
   const tempRoot = await mkdtemp(path.join(tmpdir(), "el-faraon-build-env-"));
