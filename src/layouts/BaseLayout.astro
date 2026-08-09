@@ -1,14 +1,30 @@
 ---
 import "../styles/global.css";
 
+interface SocialImage {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  mimeType: string;
+}
+
 interface Props {
   title: string;
   description: string;
   bodyClass?: string;
+  socialImage?: SocialImage;
+  structuredData?: Record<string, unknown>;
 }
 
-const { title, description, bodyClass } = Astro.props;
+const { title, description, bodyClass, socialImage, structuredData } = Astro.props;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin);
+const socialImageUrl = socialImage
+  ? new URL(socialImage.src, Astro.site ?? Astro.url.origin)
+  : undefined;
+const structuredDataJson = structuredData
+  ? JSON.stringify(structuredData).replaceAll("<", "\\u003c")
+  : undefined;
 ---
 
 <!doctype html>
@@ -25,9 +41,34 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin)
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl.href} />
-    <meta name="twitter:card" content="summary" />
+    {
+      socialImage && socialImageUrl && (
+        <>
+          <meta property="og:image" content={socialImageUrl.href} />
+          <meta property="og:image:secure_url" content={socialImageUrl.href} />
+          <meta property="og:image:type" content={socialImage.mimeType} />
+          <meta property="og:image:width" content={socialImage.width.toString()} />
+          <meta property="og:image:height" content={socialImage.height.toString()} />
+          <meta property="og:image:alt" content={socialImage.alt} />
+        </>
+      )
+    }
+    <meta name="twitter:card" content={socialImage ? "summary_large_image" : "summary"} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    {
+      socialImage && socialImageUrl && (
+        <>
+          <meta name="twitter:image" content={socialImageUrl.href} />
+          <meta name="twitter:image:alt" content={socialImage.alt} />
+        </>
+      )
+    }
+    {
+      structuredDataJson && (
+        <script type="application/ld+json" is:inline set:html={structuredDataJson} />
+      )
+    }
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />

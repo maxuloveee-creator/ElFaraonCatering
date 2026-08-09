@@ -4,6 +4,8 @@ Menu digital QR para los buffets operados por **El Faraon Catering** en los dos 
 
 Produccion: [elfaraoncatering.com.ar](https://elfaraoncatering.com.ar). El dominio `www` redirige al dominio canonico sin `www`.
 
+La landing publica metadatos Open Graph y Twitter con una imagen social propia, junto con JSON-LD `LocalBusiness` para identificar el negocio, sus contactos, domicilio y area de cobertura.
+
 ## Superficies activas
 
 - `/`: landing institucional publica.

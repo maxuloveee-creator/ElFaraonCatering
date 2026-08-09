@@ -1,11 +1,67 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+
+const productionUrl = "https://elfaraoncatering.com.ar/";
+const socialImagePath = "/og/el-faraon-catering.jpg";
+const contactPhones = [
+  "+54 9 11 6095-9892",
+  "+54 9 11 3345-4545",
+  "+54 9 11 5400-3333",
+];
+const businessStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "@id": `${productionUrl}#business`,
+  name: "El Faraón Catering",
+  description: "Catering y buffet diario con cocina casera para oficinas, empresas y eventos.",
+  url: productionUrl,
+  image: new URL(socialImagePath, productionUrl).href,
+  logo: new URL("/brand/el-faraon-logo.png", productionUrl).href,
+  email: "elfaraonbarnsmz@gmail.com",
+  telephone: contactPhones[0],
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Cuyo 1622",
+    addressLocality: "Martínez",
+    addressRegion: "Buenos Aires",
+    postalCode: "B1640",
+    addressCountry: "AR",
+  },
+  areaServed: [
+    "Martínez",
+    "San Isidro",
+    "Acassuso",
+    "Beccar",
+    "Victoria",
+    "San Fernando",
+    "Tigre",
+    "Vicente López",
+    "Olivos",
+    "La Lucila",
+  ].map((name) => ({ "@type": "City", name })),
+  contactPoint: contactPhones.map((telephone) => ({
+    "@type": "ContactPoint",
+    telephone,
+    contactType: "customer service",
+    areaServed: "AR",
+    availableLanguage: "es",
+  })),
+  sameAs: ["https://www.instagram.com/elfaraoncatering/"],
+};
 ---
 
 <BaseLayout
   title="El Faraón Catering"
   description="Catering y buffet diario con cocina casera para oficinas y estudios."
   bodyClass="landing-body"
+  socialImage={{
+    src: socialImagePath,
+    alt: "El Faraón Catering, catering para empresas y eventos en Martínez y Zona Norte",
+    width: 1200,
+    height: 630,
+    mimeType: "image/jpeg",
+  }}
+  structuredData={businessStructuredData}
 >
   <main class="landing-page">
     <header class="landing-header" aria-label="Navegación principal" data-landing-header>
