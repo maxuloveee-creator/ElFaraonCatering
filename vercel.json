@@ -60,6 +60,17 @@
   ],
   "redirects": [
     {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "elfaraoncatering.vercel.app"
+        }
+      ],
+      "destination": "https://elfaraoncatering.com.ar/$1",
+      "permanent": true
+    },
+    {
       "source": "/menu",
       "destination": "/",
       "permanent": false

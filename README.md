@@ -2,7 +2,7 @@
 
 Menu digital QR para los buffets operados por **El Faraon Catering** en los dos edificios de **Telefe**. La experiencia publica es rapida, mobile-first e informativa: no incluye pedidos, pagos, reservas, carrito ni cuentas de clientes. Los enlaces de WhatsApp, cuando existen, son solo vias de contacto.
 
-Produccion: [elfaraoncatering.com.ar](https://elfaraoncatering.com.ar). El dominio `www` redirige al dominio canonico sin `www`.
+Produccion: [elfaraoncatering.com.ar](https://elfaraoncatering.com.ar). Los dominios `www` y `elfaraoncatering.vercel.app` redirigen permanentemente al dominio canonico sin `www`, conservando la ruta solicitada.
 
 La landing publica metadatos Open Graph y Twitter con una imagen social propia, junto con JSON-LD `LocalBusiness` para identificar el negocio, sus contactos, domicilio y area de cobertura.
 

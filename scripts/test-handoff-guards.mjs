@@ -17,6 +17,7 @@ const publishFunctionPath = path.join(
   "index.ts",
 );
 const productionOrigin = "https://elfaraoncatering.com.ar";
+const legacyProductionHost = "elfaraoncatering.vercel.app";
 
 test("production domain stays aligned across application and Supabase configuration", async () => {
   const [astroConfig, baseLayout, supabaseConfig, envExample, robots, sitemap] =
@@ -28,6 +29,15 @@ test("production domain stays aligned across application and Supabase configurat
       readFile(path.join(repoRoot, "public", "robots.txt"), "utf8"),
       readFile(path.join(repoRoot, "public", "sitemap.xml"), "utf8"),
     ]);
+  const vercelConfig = await readFile(path.join(repoRoot, "vercel.json"), "utf8");
+
+  const legacyHostRedirect = JSON.parse(vercelConfig).redirects?.find(
+    (redirect) =>
+      redirect.has?.some(
+        (condition) =>
+          condition.type === "host" && condition.value === legacyProductionHost,
+      ),
+  );
 
   assert.equal(astroConfig.includes(`site: "${productionOrigin}"`), true);
   assert.match(baseLayout, /rel="canonical"/);
@@ -38,6 +48,12 @@ test("production domain stays aligned across application and Supabase configurat
   assert.equal(envExample.includes(`PUBLISH_ALLOWED_ORIGINS=${productionOrigin}`), true);
   assert.equal(robots.includes(`Sitemap: ${productionOrigin}/sitemap.xml`), true);
   assert.equal(sitemap.includes(`<loc>${productionOrigin}/</loc>`), true);
+  assert.deepEqual(legacyHostRedirect, {
+    source: "/(.*)",
+    has: [{ type: "host", value: legacyProductionHost }],
+    destination: `${productionOrigin}/$1`,
+    permanent: true,
+  });
 });
 
 test("publish Edge Function pins the Supabase client to an exact version", async () => {
