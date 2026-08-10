@@ -9,6 +9,13 @@ import { auditProtectedSchemasNotExposed } from "./supabase-platform-audit.mjs";
 const repoRoot = process.cwd();
 const buildEnvScript = path.join(repoRoot, "scripts", "validate-build-env.mjs");
 const distSecretsScript = path.join(repoRoot, "scripts", "verify-dist-secrets.mjs");
+const publishFunctionPath = path.join(
+  repoRoot,
+  "supabase",
+  "functions",
+  "publish-menu-changes",
+  "index.ts",
+);
 const productionOrigin = "https://elfaraoncatering.com.ar";
 
 test("production domain stays aligned across application and Supabase configuration", async () => {
@@ -31,6 +38,26 @@ test("production domain stays aligned across application and Supabase configurat
   assert.equal(envExample.includes(`PUBLISH_ALLOWED_ORIGINS=${productionOrigin}`), true);
   assert.equal(robots.includes(`Sitemap: ${productionOrigin}/sitemap.xml`), true);
   assert.equal(sitemap.includes(`<loc>${productionOrigin}/</loc>`), true);
+});
+
+test("publish Edge Function pins the Supabase client to an exact version", async () => {
+  const functionSource = await readFile(publishFunctionPath, "utf8");
+
+  assert.match(
+    functionSource,
+    /from "npm:@supabase\/supabase-js@\d+\.\d+\.\d+";/,
+  );
+});
+
+test("menu image optimizer declares and loads sharp directly", async () => {
+  const packageManifest = JSON.parse(
+    await readFile(path.join(repoRoot, "package.json"), "utf8"),
+  );
+
+  assert.equal(packageManifest.devDependencies?.sharp, "^0.35.3");
+
+  const sharpModule = await import("sharp");
+  assert.equal(typeof sharpModule.default, "function");
 });
 
 test("build environment guard requires both public Supabase variables", async () => {
