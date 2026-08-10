@@ -173,6 +173,8 @@ npm run supabase:functions:deploy
 
 Ese script despliega unicamente `publish-menu-changes` con `--no-verify-jwt`, en linea con `supabase/config.toml`.
 
+La Function fija `@supabase/supabase-js` a una version exacta en su import. Las actualizaciones deben conservar ese pin, respetar la cuarentena de versiones nuevas y pasar `npm run test:tools`, el chequeo Deno de la Function, `npm run check:js` y `npm run lint` antes de considerar un deploy.
+
 ## Archivos de esta carpeta
 
 - `schema-diagram.md`: mapa Mermaid del modelo, overlay, admin y publicacion.
