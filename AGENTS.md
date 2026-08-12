@@ -34,6 +34,7 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 - Availability is progressive runtime data and may only alter visual availability. A missing overlay means available.
 - Do not add direct runtime queries for build-time content. Admin reads use approved RPCs; public runtime reads stay limited to the availability contract.
 - Do not add `@supabase/supabase-js` to browser code unless a required capability justifies an explicit architecture change.
+- All direct Postgres build, validation, and audit clients must use `src/utils/supabasePostgresClient.mjs` with the versioned Supabase CA. Do not instantiate `postgres()` elsewhere, accept weak SSL modes, replace the CA from a DSN, or disable TLS verification.
 
 ### Menu model
 

@@ -1,9 +1,10 @@
-import postgres from "postgres";
+import type postgres from "postgres";
 import type {
   MenuContentSnapshot,
 } from "../types/menu";
 import { getSafeMenuImagePaths } from "./menuImagePath.mjs";
 import { createSnapshot, loadRows } from "./menuSupabaseSnapshot.mjs";
+import { createSupabasePostgresClient } from "./supabasePostgresClient.mjs";
 
 type MenuDb = ReturnType<typeof postgres>;
 
@@ -45,10 +46,7 @@ const withMenuDb = async <T>(query: (sql: MenuDb) => Promise<T>): Promise<T> => 
     );
   }
 
-  const sql = postgres(databaseUrl, {
-    max: 1,
-    prepare: false,
-  });
+  const sql = createSupabasePostgresClient(databaseUrl);
 
   try {
     return await query(sql);
