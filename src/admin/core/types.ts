@@ -6,6 +6,7 @@ export type ServiceSectionId = "active-service" | "daily-menu" | "grill";
 export type StatusTone = "neutral" | "success" | "danger";
 export type FixedMenuEditMode = "items" | "options-only";
 export type AuthView = "login" | "reset-request" | "set-password";
+export type PublicationPhase = "up_to_date" | "changes_pending" | "publishing" | "failed";
 
 export interface AuthSession {
   accessToken: string;
@@ -143,11 +144,11 @@ export interface CatalogEditorState {
 }
 
 export interface PublicationState {
-  current_content_hash: string;
-  published_content_hash: string;
-  deployed_content_hash: string;
-  has_unpublished_changes: boolean;
-  publish_requested: boolean;
+  phase: PublicationPhase;
+  has_newer_changes: boolean;
+  can_retry: boolean;
+  requested_at: string | null;
+  expires_at: string | null;
 }
 
 export interface AdminOperationalState {
@@ -175,7 +176,6 @@ export interface RpcResult {
   requires_redeploy: boolean;
   operation: string;
   message: string;
-  cooldown_seconds_remaining?: number;
 }
 
 export interface StatusMessage {

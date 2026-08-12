@@ -146,6 +146,7 @@ test("daily menu save calls set_daily_menu", async () => {
       },
     },
   ]);
+  assert.equal(harness.loads[0].text, "Menú guardado.");
 });
 
 test("fixed price save calls set_global_fixed_price", async () => {
@@ -168,12 +169,17 @@ test("fixed price save calls set_global_fixed_price", async () => {
   ]);
 });
 
-test("publish queued marks current publication and remembers cooldown", async () => {
+test("publish queued reloads the canonical server state", async () => {
   const harness = createHarness({
+    loadState: createState({
+      publication: {
+        phase: "publishing",
+        requested_at: "2026-08-12T12:00:00Z",
+      },
+    }),
     publishResult: okResult({
       operation: "publish-menu-changes",
       message: "publish_queued",
-      cooldown_seconds_remaining: 30,
     }),
   });
   const operations = createAdminOperations(harness.context);
@@ -181,63 +187,91 @@ test("publish queued marks current publication and remembers cooldown", async ()
   await operations.publishChanges();
 
   assert.equal(harness.requiredSessions, 1);
-  assert.equal(harness.markedPublicationRequested, 1);
-  assert.deepEqual(harness.rememberedCooldowns, [30]);
-  assert.equal(harness.loads[0].tone, "success");
-});
-
-test("recent publish marks current hash requested when it was already accepted", async () => {
-  const hash = "11111111111111111111111111111111";
-  const harness = createHarness({
-    loadState: createState({
-      publication: {
-        current_content_hash: hash,
-        published_content_hash: hash,
-        deployed_content_hash: "22222222222222222222222222222222",
-        has_unpublished_changes: true,
-      },
-    }),
-    publishResult: okResult({
-      operation: "publish-menu-changes",
-      message: "publish_recently_queued",
-      cooldown_seconds_remaining: 25,
-    }),
-  });
-  const operations = createAdminOperations(harness.context);
-
-  await operations.publishChanges();
-
-  assert.equal(harness.markedPublicationRequested, 1);
-  assert.deepEqual(harness.rememberedCooldowns, [25]);
-  assert.equal(harness.loads.length, 2);
-  assert.equal(harness.loads[0].tone, "neutral");
-  assert.equal(harness.loads[1].tone, undefined);
-});
-
-test("recent publish keeps pending banner actionable when current hash was not accepted", async () => {
-  const harness = createHarness({
-    loadState: createState({
-      publication: {
-        current_content_hash: "11111111111111111111111111111111",
-        published_content_hash: "33333333333333333333333333333333",
-        deployed_content_hash: "22222222222222222222222222222222",
-        has_unpublished_changes: true,
-      },
-    }),
-    publishResult: okResult({
-      operation: "publish-menu-changes",
-      message: "publish_recently_queued",
-      cooldown_seconds_remaining: 25,
-    }),
-  });
-  const operations = createAdminOperations(harness.context);
-
-  await operations.publishChanges();
-
-  assert.equal(harness.markedPublicationRequested, 0);
-  assert.deepEqual(harness.rememberedCooldowns, [25]);
   assert.equal(harness.loads.length, 1);
-  assert.equal(harness.loads[0].tone, "neutral");
+  assert.deepEqual(harness.statuses, [
+    { text: "Publicación en curso. Podés seguir trabajando.", tone: "neutral" },
+  ]);
+  assert.equal(harness.busyTexts[0], "Preparando publicación...");
+});
+
+test("already active publish reloads the same canonical server state", async () => {
+  const harness = createHarness({
+    loadState: createState({
+      publication: {
+        phase: "publishing",
+        has_newer_changes: true,
+        requested_at: "2026-08-12T12:00:00Z",
+      },
+    }),
+    publishResult: okResult({
+      operation: "publish-menu-changes",
+      message: "publish_already_active",
+    }),
+  });
+  const operations = createAdminOperations(harness.context);
+
+  await operations.publishChanges();
+
+  assert.equal(harness.requiredSessions, 1);
+  assert.equal(harness.loads.length, 1);
+  assert.deepEqual(harness.statuses, [
+    { text: "Publicación en curso. Podés seguir trabajando.", tone: "neutral" },
+  ]);
+});
+
+test("publish reload reports a canonical failure without losing changes", async () => {
+  const harness = createHarness({
+    loadState: createState({
+      publication: {
+        phase: "failed",
+        can_retry: true,
+        requested_at: "2026-08-12T12:00:00Z",
+      },
+    }),
+  });
+  const operations = createAdminOperations(harness.context);
+
+  await operations.publishChanges();
+
+  assert.equal(harness.loads.length, 1);
+  assert.deepEqual(harness.statuses, [
+    { text: "No se pudo publicar. Tus cambios siguen guardados.", tone: "danger" },
+  ]);
+});
+
+test("publish request failure reloads server state before offering retry", async () => {
+  const harness = createHarness({
+    loadState: createState({
+      publication: {
+        phase: "failed",
+        can_retry: true,
+        requested_at: "2026-08-12T12:00:00Z",
+      },
+    }),
+    publishError: new Error("No se pudo publicar."),
+  });
+  const operations = createAdminOperations(harness.context);
+
+  await operations.publishChanges();
+
+  assert.equal(harness.loads.length, 1);
+  assert.deepEqual(harness.statuses, [
+    { text: "No se pudo publicar. Tus cambios siguen guardados.", tone: "danger" },
+  ]);
+});
+
+test("publish request failure keeps technical errors out of the operator flow", async () => {
+  const harness = createHarness({
+    loadState: createState({ publication: { phase: "changes_pending" } }),
+    publishError: new Error("publish_not_configured"),
+  });
+  const operations = createAdminOperations(harness.context);
+
+  await operations.publishChanges();
+
+  assert.deepEqual(harness.statuses, [
+    { text: "No se pudo publicar. Tus cambios siguen guardados.", tone: "danger" },
+  ]);
 });
 
 test("partial mutation failure reports incomplete operation", async () => {
@@ -277,19 +311,20 @@ function createHarness(options = {}) {
   const calls = [];
   const loads = [];
   const busyTexts = [];
+  const statuses = [];
   const mutationResults = [...(options.mutationResults ?? [])];
   const loadState = options.loadState ?? createState({
     publication: {
-      has_unpublished_changes: true,
+      phase: "publishing",
+      requested_at: "2026-08-12T12:00:00Z",
     },
   });
   const harness = {
     calls,
     loads,
     busyTexts,
+    statuses,
     requiredSessions: 0,
-    markedPublicationRequested: 0,
-    rememberedCooldowns: [],
     context: {
       async runBusy(action, busyText) {
         busyTexts.push(busyText ?? "");
@@ -306,6 +341,9 @@ function createHarness(options = {}) {
         });
         return loadState;
       },
+      setStatus(text, tone) {
+        statuses.push({ text, tone });
+      },
       async requireSession() {
         harness.requiredSessions += 1;
         return {
@@ -315,13 +353,11 @@ function createHarness(options = {}) {
         };
       },
       async publishMenuChanges() {
+        if (options.publishError) {
+          throw options.publishError;
+        }
+
         return options.publishResult ?? okResult({ operation: "publish-menu-changes" });
-      },
-      markCurrentPublicationRequested() {
-        harness.markedPublicationRequested += 1;
-      },
-      rememberPublishCooldown(result) {
-        harness.rememberedCooldowns.push(result.cooldown_seconds_remaining);
       },
     },
   };

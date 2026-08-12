@@ -106,6 +106,83 @@ left join actual_indexes actual
  and actual.table_name = expected.table_name
 order by expected.table_name, expected.index_name;
 
+with expected_constraints (constraint_name, table_name, expectation) as (
+  values
+    ('menu_publication_revisions_content_hash_valid', 'menu_publication_revisions', 'revision hash format'),
+    ('menu_publication_revisions_snapshot_version_valid', 'menu_publication_revisions', 'supported snapshot version'),
+    ('menu_publication_revisions_snapshot_object', 'menu_publication_revisions', 'snapshot is a JSON object'),
+    ('menu_publication_revisions_snapshot_hash_matches', 'menu_publication_revisions', 'snapshot matches stored hash'),
+    ('menu_publish_requests_status_check', 'menu_publish_requests', 'queued, triggered, succeeded, or failed status'),
+    ('menu_publish_requests_revision_required', 'menu_publish_requests', 'queued or triggered requests reference a revision'),
+    ('menu_publish_requests_expiry_required', 'menu_publish_requests', 'revision-backed requests have a server expiry'),
+    ('menu_publish_requests_deployment_id_valid', 'menu_publish_requests', 'Vercel deployment id format'),
+    ('menu_publish_requests_deployment_host_valid', 'menu_publish_requests', 'verified deployment host format'),
+    ('menu_publish_requests_confirmation_event_id_valid', 'menu_publish_requests', 'bounded confirmation evidence id'),
+    ('menu_publish_requests_confirmation_source_valid', 'menu_publish_requests', 'trusted confirmation source'),
+    ('menu_publish_requests_confirmation_pair', 'menu_publish_requests', 'confirmation id and source are paired'),
+    ('menu_publish_requests_vercel_project_id_valid', 'menu_publish_requests', 'Vercel project id format'),
+    ('menu_publish_requests_vercel_team_id_valid', 'menu_publish_requests', 'optional Vercel team id format'),
+    ('menu_publication_state_singleton', 'menu_publication_state', 'one singleton publication state key'),
+    ('menu_publication_builds_deployment_id_valid', 'menu_publication_builds', 'Vercel deployment id format'),
+    ('menu_publication_builds_content_hash_valid', 'menu_publication_builds', 'build hash format'),
+    ('menu_publication_builds_project_id_valid', 'menu_publication_builds', 'Vercel project id format'),
+    ('menu_publication_promotions_event_id_valid', 'menu_publication_promotions', 'bounded evidence id'),
+    ('menu_publication_promotions_source_valid', 'menu_publication_promotions', 'trusted evidence source'),
+    ('menu_publication_promotions_deployment_id_valid', 'menu_publication_promotions', 'Vercel deployment id format'),
+    ('menu_publication_promotions_content_hash_valid', 'menu_publication_promotions', 'promotion hash format'),
+    ('menu_publication_promotions_deployment_host_valid', 'menu_publication_promotions', 'verified deployment host format'),
+    ('menu_publication_promotions_project_id_valid', 'menu_publication_promotions', 'Vercel project id format'),
+    ('menu_publication_promotions_team_id_valid', 'menu_publication_promotions', 'optional Vercel team id format')
+),
+actual_constraints as (
+  select constraint_name, table_name
+  from information_schema.table_constraints
+  where table_schema = 'app_private'
+)
+select
+  'constraint' as object_type,
+  expected.constraint_name as object_name,
+  expected.table_name,
+  case when actual.constraint_name is null then 'missing' else 'present' end as status,
+  expected.expectation
+from expected_constraints expected
+left join actual_constraints actual
+  on actual.constraint_name = expected.constraint_name
+ and actual.table_name = expected.table_name
+order by expected.table_name, expected.constraint_name;
+
+with expected_indexes (index_name, table_name, expectation) as (
+  values
+    ('menu_publish_requests_one_active_idx', 'menu_publish_requests', 'at most one queued or triggered request'),
+    ('menu_publish_requests_revision_idx', 'menu_publish_requests', 'revision request lookup'),
+    ('menu_publication_revisions_pkey', 'menu_publication_revisions', 'immutable revision id'),
+    ('menu_publication_revisions_created_by_idx', 'menu_publication_revisions', 'revision creator history'),
+    ('menu_publication_revision_events_pkey', 'menu_publication_revision_events', 'exact event membership per revision'),
+    ('menu_publication_revision_events_change_event_idx', 'menu_publication_revision_events', 'revision lookup by captured event'),
+    ('menu_publication_state_pkey', 'menu_publication_state', 'singleton state key'),
+    ('menu_publication_builds_pkey', 'menu_publication_builds', 'one binding per deployment'),
+    ('menu_publication_builds_request_idx', 'menu_publication_builds', 'build lookup by optional request'),
+    ('menu_publication_builds_revision_idx', 'menu_publication_builds', 'build lookup by revision'),
+    ('menu_publication_promotions_pkey', 'menu_publication_promotions', 'idempotent evidence event id'),
+    ('menu_publication_promotions_deployment_idx', 'menu_publication_promotions', 'promotion history by deployment')
+),
+actual_indexes as (
+  select indexname as index_name, tablename as table_name
+  from pg_indexes
+  where schemaname = 'app_private'
+)
+select
+  'index' as object_type,
+  expected.index_name as object_name,
+  expected.table_name,
+  case when actual.index_name is null then 'missing' else 'present' end as status,
+  expected.expectation
+from expected_indexes expected
+left join actual_indexes actual
+  on actual.index_name = expected.index_name
+ and actual.table_name = expected.table_name
+order by expected.table_name, expected.index_name;
+
 select
   'menu_prices_kind_amount_invalid' as diagnostic,
   pricing_key,
@@ -275,6 +352,48 @@ with expected_columns (table_schema, table_name, column_name, data_type, is_null
     ('app_private', 'menu_publish_requests', 'updated_at', 'timestamp with time zone', 'NO', 'now()'),
     ('app_private', 'menu_publish_requests', 'menu_content_hash', 'text', 'YES', null),
     ('app_private', 'menu_publish_requests', 'change_event_count', 'integer', 'NO', '0'),
+    ('app_private', 'menu_publish_requests', 'revision_id', 'uuid', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'expires_at', 'timestamp with time zone', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'triggered_at', 'timestamp with time zone', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'deployment_id', 'text', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'deployment_host', 'text', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'confirmation_event_id', 'text', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'confirmation_source', 'text', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'promoted_at', 'timestamp with time zone', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'vercel_project_id', 'text', 'YES', null),
+    ('app_private', 'menu_publish_requests', 'vercel_team_id', 'text', 'YES', null),
+    ('app_private', 'menu_publication_revisions', 'id', 'uuid', 'NO', null),
+    ('app_private', 'menu_publication_revisions', 'content_hash', 'text', 'NO', null),
+    ('app_private', 'menu_publication_revisions', 'snapshot_version', 'integer', 'NO', '1'),
+    ('app_private', 'menu_publication_revisions', 'content_snapshot', 'jsonb', 'NO', null),
+    ('app_private', 'menu_publication_revisions', 'created_by', 'uuid', 'YES', null),
+    ('app_private', 'menu_publication_revisions', 'created_at', 'timestamp with time zone', 'NO', 'now()'),
+    ('app_private', 'menu_publication_revision_events', 'revision_id', 'uuid', 'NO', null),
+    ('app_private', 'menu_publication_revision_events', 'change_event_id', 'bigint', 'NO', null),
+    ('app_private', 'menu_publication_state', 'singleton', 'boolean', 'NO', 'true'),
+    ('app_private', 'menu_publication_state', 'active_request_id', 'bigint', 'YES', null),
+    ('app_private', 'menu_publication_state', 'deployed_request_id', 'bigint', 'YES', null),
+    ('app_private', 'menu_publication_state', 'deployed_revision_id', 'uuid', 'YES', null),
+    ('app_private', 'menu_publication_state', 'deployed_at', 'timestamp with time zone', 'YES', null),
+    ('app_private', 'menu_publication_state', 'updated_at', 'timestamp with time zone', 'NO', 'now()'),
+    ('app_private', 'menu_publication_state', 'deployed_evidence_event_id', 'text', 'YES', null),
+    ('app_private', 'menu_publication_builds', 'deployment_id', 'text', 'NO', null),
+    ('app_private', 'menu_publication_builds', 'project_id', 'text', 'NO', null),
+    ('app_private', 'menu_publication_builds', 'request_id', 'bigint', 'YES', null),
+    ('app_private', 'menu_publication_builds', 'revision_id', 'uuid', 'NO', null),
+    ('app_private', 'menu_publication_builds', 'content_hash', 'text', 'NO', null),
+    ('app_private', 'menu_publication_builds', 'created_at', 'timestamp with time zone', 'NO', 'now()'),
+    ('app_private', 'menu_publication_promotions', 'evidence_event_id', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'evidence_source', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'deployment_id', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'request_id', 'bigint', 'YES', null),
+    ('app_private', 'menu_publication_promotions', 'revision_id', 'uuid', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'content_hash', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'deployment_host', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'project_id', 'text', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'team_id', 'text', 'YES', null),
+    ('app_private', 'menu_publication_promotions', 'promoted_at', 'timestamp with time zone', 'NO', null),
+    ('app_private', 'menu_publication_promotions', 'received_at', 'timestamp with time zone', 'NO', 'now()'),
     ('app_private', 'menu_change_events', 'id', 'bigint', 'NO', null),
     ('app_private', 'menu_change_events', 'created_at', 'timestamp with time zone', 'NO', 'now()'),
     ('app_private', 'menu_change_events', 'changed_by', 'uuid', 'YES', null),
@@ -416,6 +535,48 @@ with expected_columns (table_schema, table_name, column_name) as (
     ('app_private', 'menu_publish_requests', 'updated_at'),
     ('app_private', 'menu_publish_requests', 'menu_content_hash'),
     ('app_private', 'menu_publish_requests', 'change_event_count'),
+    ('app_private', 'menu_publish_requests', 'revision_id'),
+    ('app_private', 'menu_publish_requests', 'expires_at'),
+    ('app_private', 'menu_publish_requests', 'triggered_at'),
+    ('app_private', 'menu_publish_requests', 'deployment_id'),
+    ('app_private', 'menu_publish_requests', 'deployment_host'),
+    ('app_private', 'menu_publish_requests', 'confirmation_event_id'),
+    ('app_private', 'menu_publish_requests', 'confirmation_source'),
+    ('app_private', 'menu_publish_requests', 'promoted_at'),
+    ('app_private', 'menu_publish_requests', 'vercel_project_id'),
+    ('app_private', 'menu_publish_requests', 'vercel_team_id'),
+    ('app_private', 'menu_publication_revisions', 'id'),
+    ('app_private', 'menu_publication_revisions', 'content_hash'),
+    ('app_private', 'menu_publication_revisions', 'snapshot_version'),
+    ('app_private', 'menu_publication_revisions', 'content_snapshot'),
+    ('app_private', 'menu_publication_revisions', 'created_by'),
+    ('app_private', 'menu_publication_revisions', 'created_at'),
+    ('app_private', 'menu_publication_revision_events', 'revision_id'),
+    ('app_private', 'menu_publication_revision_events', 'change_event_id'),
+    ('app_private', 'menu_publication_state', 'singleton'),
+    ('app_private', 'menu_publication_state', 'active_request_id'),
+    ('app_private', 'menu_publication_state', 'deployed_request_id'),
+    ('app_private', 'menu_publication_state', 'deployed_revision_id'),
+    ('app_private', 'menu_publication_state', 'deployed_at'),
+    ('app_private', 'menu_publication_state', 'updated_at'),
+    ('app_private', 'menu_publication_state', 'deployed_evidence_event_id'),
+    ('app_private', 'menu_publication_builds', 'deployment_id'),
+    ('app_private', 'menu_publication_builds', 'project_id'),
+    ('app_private', 'menu_publication_builds', 'request_id'),
+    ('app_private', 'menu_publication_builds', 'revision_id'),
+    ('app_private', 'menu_publication_builds', 'content_hash'),
+    ('app_private', 'menu_publication_builds', 'created_at'),
+    ('app_private', 'menu_publication_promotions', 'evidence_event_id'),
+    ('app_private', 'menu_publication_promotions', 'evidence_source'),
+    ('app_private', 'menu_publication_promotions', 'deployment_id'),
+    ('app_private', 'menu_publication_promotions', 'request_id'),
+    ('app_private', 'menu_publication_promotions', 'revision_id'),
+    ('app_private', 'menu_publication_promotions', 'content_hash'),
+    ('app_private', 'menu_publication_promotions', 'deployment_host'),
+    ('app_private', 'menu_publication_promotions', 'project_id'),
+    ('app_private', 'menu_publication_promotions', 'team_id'),
+    ('app_private', 'menu_publication_promotions', 'promoted_at'),
+    ('app_private', 'menu_publication_promotions', 'received_at'),
     ('app_private', 'menu_change_events', 'id'),
     ('app_private', 'menu_change_events', 'created_at'),
     ('app_private', 'menu_change_events', 'changed_by'),

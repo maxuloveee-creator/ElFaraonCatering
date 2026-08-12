@@ -1,6 +1,7 @@
 import type {
   AdminOperationalState,
   AdminStatusText,
+  PublicationState,
   RenderFocusMode,
   RenderOptions,
   RpcResult,
@@ -16,7 +17,7 @@ import { createAdminActionHandlers } from "./app/actionHandlers";
 import { bindAdminEventHandlers } from "./app/eventHandlers";
 import { createAdminFormHandlers } from "./app/formHandlers";
 import { createAdminFormState } from "./app/formState";
-import { createAdminPublicationState } from "./app/publicationState";
+import { createAdminPublicationPoller } from "./app/publicationPolling";
 import { createAdminSessionController } from "./app/session";
 import { createAdminOperations } from "./operations";
 import {
@@ -29,6 +30,10 @@ import {
   setAdminViewContext,
 } from "./views/renderer";
 import { normalizeAdminState } from "./core/adminState";
+import {
+  arePublicationStatesEqual,
+  getPublicationTransitionStatus,
+} from "./core/publication";
 import { toOperationalErrorMessage } from "./core/responses";
 import { getTrimmedValue, normalizeSupabaseProjectUrl } from "./core/url";
 
@@ -47,21 +52,31 @@ let currentState: AdminOperationalState | null = null;
 let currentStatus: StatusMessage | null = null;
 let currentBusyText: string | null = null;
 let isBusy = false;
+let lastCanonicalReconciliationAt = 0;
+let canonicalReconciliationInFlight = false;
+
+const publicationPollingErrorMessage = "No pudimos actualizar el estado. Tus cambios siguen guardados.";
+const publicationPollingDelayedMessage = "La publicación está tardando más de lo esperado. Tus cambios siguen guardados.";
+const canonicalReconciliationIntervalMs = 60_000;
 
 if (!rootElement) {
   throw new Error("Admin root element was not found.");
 }
 
 const root: HTMLElement = rootElement;
-const deployedContentHash = getTrimmedValue(root.dataset.deployedContentHash) ?? "";
 const formState = createAdminFormState(root);
-const publicationState = createAdminPublicationState(deployedContentHash);
+const publicationPoller = createAdminPublicationPoller({
+  loadPublicationState: refreshPublicationState,
+  isVisible: () => document.visibilityState !== "hidden",
+  onError: handlePublicationPollingError,
+  onDelayed: handlePublicationPollingDelayed,
+});
 const sessionController = createAdminSessionController({
   config: adminApiConfig,
   hasApiConfig: Boolean(supabaseUrl && supabaseAnonKey),
   loadAdminState,
   renderCurrentView,
-  resetPublicationState: publicationState.reset,
+  stopPublicationPolling: stopPublicationActivity,
   runBusy,
   setAdminState,
   setStatus,
@@ -71,17 +86,15 @@ const adminOperations = createAdminOperations({
   runBusy,
   callMutation,
   loadAdminState,
+  setStatus,
   requireSession: sessionController.requireSession,
   publishMenuChanges: (session) => publishMenuChangesRequest(adminApiConfig, session),
-  markCurrentPublicationRequested: () => publicationState.markCurrentPublicationRequested(currentState),
-  rememberPublishCooldown: publicationState.rememberPublishCooldown,
 });
 const actionHandlers = createAdminActionHandlers({
   root,
   formState,
   sessionController,
   adminOperations,
-  publicationState,
   getCurrentState: () => currentState,
   loadAdminState,
   renderCurrentView,
@@ -103,6 +116,9 @@ bindAdminEventHandlers({
   handleUnexpectedError,
 });
 
+document.addEventListener("visibilitychange", handlePublicationVisibilityChange);
+window.addEventListener("focus", handlePublicationFocus);
+
 void sessionController.start(renderConfigurationProblem).catch(handleUnexpectedError);
 
 function renderConfigurationProblem(): void {
@@ -115,16 +131,80 @@ async function loadAdminState(
   statusText?: AdminStatusText,
   statusTone: StatusTone = "neutral",
   focus: RenderFocusMode = "preserve",
+  reconcileCanonicalArtifact = false,
 ): Promise<AdminOperationalState> {
   const session = await sessionController.requireSession();
-  const state = await loadAdminOperationalState(adminApiConfig, session);
-  currentState = normalizeAdminState(state, deployedContentHash, publicationState.getRequestedPublishHash());
-  currentState = publicationState.reconcileState(currentState);
-  currentStatus = statusText ? { text: getAdminStatusText(statusText, currentState), tone: statusTone } : currentStatus;
+  const state = await loadAdminOperationalState(
+    adminApiConfig,
+    session,
+    reconcileCanonicalArtifact,
+  );
+
+  if (reconcileCanonicalArtifact) {
+    lastCanonicalReconciliationAt = Date.now();
+  }
+  const previousPublication = currentState?.publication ?? null;
+  currentState = normalizeAdminState(state);
+  const transitionStatus = getPublicationTransitionStatus(previousPublication, currentState.publication);
+
+  if (statusText) {
+    const requestedStatusText = getAdminStatusText(statusText, currentState);
+    currentStatus = transitionStatus
+      ? {
+          text: `${requestedStatusText} ${transitionStatus.text}`,
+          tone: transitionStatus.tone === "danger" ? "danger" : statusTone,
+        }
+      : { text: requestedStatusText, tone: statusTone };
+  } else if (transitionStatus) {
+    currentStatus = transitionStatus;
+  }
+
   syncAdminViewContext();
   ensureActiveTab();
-  renderCurrentView({ focus, revealStatus: Boolean(statusText) });
+  renderCurrentView({ focus, revealStatus: Boolean(statusText || transitionStatus) });
+  syncPublicationPolling(currentState.publication);
   return currentState;
+}
+
+async function refreshPublicationState(
+  reconcileCanonicalArtifact = false,
+): Promise<PublicationState> {
+  const activePublication = currentState?.publication;
+
+  if (isBusy && activePublication) {
+    return activePublication;
+  }
+
+  const session = await sessionController.requireSession();
+  const state = normalizeAdminState(
+    await loadAdminOperationalState(adminApiConfig, session, reconcileCanonicalArtifact),
+  );
+  const nextPublication = state.publication;
+
+  if (!currentState) {
+    return nextPublication;
+  }
+
+  const previousPublication = currentState.publication;
+  const transitionStatus = getPublicationTransitionStatus(previousPublication, nextPublication);
+  const publicationChanged = !arePublicationStatesEqual(previousPublication, nextPublication);
+  const shouldClearPollingError = currentStatus?.text === publicationPollingErrorMessage;
+
+  if (publicationChanged) {
+    currentState = { ...currentState, publication: nextPublication };
+  }
+
+  if (transitionStatus) {
+    currentStatus = transitionStatus;
+  } else if (shouldClearPollingError) {
+    currentStatus = null;
+  }
+
+  if (publicationChanged || transitionStatus || shouldClearPollingError) {
+    renderCurrentView({ revealStatus: Boolean(transitionStatus) });
+  }
+
+  return nextPublication;
 }
 
 function getAdminStatusText(statusText: AdminStatusText, state: AdminOperationalState): string {
@@ -138,6 +218,10 @@ async function callMutation(name: string, body: Record<string, unknown>): Promis
 
 function setAdminState(state: AdminOperationalState | null): void {
   currentState = state;
+
+  if (!state) {
+    stopPublicationActivity();
+  }
 }
 
 function setStatusMessage(message: StatusMessage | null): void {
@@ -174,6 +258,80 @@ function handleUnexpectedError(error: unknown): void {
       : "Ocurrió un error inesperado.";
   currentStatus = { text: message, tone: "danger" };
   renderCurrentView({ revealStatus: true });
+}
+
+function handlePublicationPollingError(): void {
+  if (currentState?.publication.phase !== "publishing") {
+    return;
+  }
+
+  currentStatus = { text: publicationPollingErrorMessage, tone: "neutral" };
+  renderCurrentView({ revealStatus: true });
+}
+
+function handlePublicationPollingDelayed(): void {
+  if (currentState?.publication.phase !== "publishing") {
+    return;
+  }
+
+  currentStatus = { text: publicationPollingDelayedMessage, tone: "neutral" };
+  renderCurrentView({ revealStatus: true });
+}
+
+function handlePublicationVisibilityChange(): void {
+  if (document.visibilityState === "hidden") {
+    publicationPoller.pause();
+    return;
+  }
+
+  handlePublicationFocus();
+}
+
+function handlePublicationFocus(): void {
+  if (document.visibilityState === "hidden" || !currentState) {
+    return;
+  }
+
+  if (currentState.publication.phase === "publishing") {
+    publicationPoller.resume();
+    return;
+  }
+
+  const now = Date.now();
+
+  if (
+    isBusy
+    || canonicalReconciliationInFlight
+    || now - lastCanonicalReconciliationAt < canonicalReconciliationIntervalMs
+  ) {
+    return;
+  }
+
+  lastCanonicalReconciliationAt = now;
+  canonicalReconciliationInFlight = true;
+  void refreshPublicationState(true)
+    .then((publication) => syncPublicationPolling(publication))
+    .catch(() => undefined)
+    .finally(() => {
+      canonicalReconciliationInFlight = false;
+    });
+}
+
+function syncPublicationPolling(publication: PublicationState): void {
+  if (publication.phase === "publishing") {
+    // The state was just reconciled by loadAdminOperationalState, so the first
+    // background refresh can wait for the normal fast interval.
+    publicationPoller.start(publication, false);
+    return;
+  }
+
+  publicationPoller.stop();
+}
+
+function stopPublicationActivity(): void {
+  publicationPoller.stop();
+  lastCanonicalReconciliationAt = 0;
+  canonicalReconciliationInFlight = false;
 }
 
 // Fetch network TypeError messages differ across Chrome, Firefox, and Safari.

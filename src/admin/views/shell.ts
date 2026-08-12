@@ -58,18 +58,55 @@ export function renderAdminShell(input: AdminShellInput): string {
 }
 
 function renderPublishBanner(state: AdminOperationalState, isBusy: boolean): string {
-  if (!state.publication.has_unpublished_changes || !state.permissions.can_publish_menu) {
+  if (state.publication.phase === "up_to_date" || !state.permissions.can_publish_menu) {
     return "";
   }
 
+  const { title, description, actionLabel } = getPublicationBannerContent(state);
+
   return `
-    <div class="admin-banner">
-      <span>${state.publication.publish_requested
-        ? "Publicación en curso. Los cambios se están subiendo al menú. Si no termina, podés reintentar en un minuto."
-        : "Falta publicar: hay cambios guardados pendientes"}</span>
-      <button class="admin-button" type="button" data-admin-action="${adminActions.publish}" ${disabledAttr(isBusy)}>${state.publication.publish_requested
-        ? "Reintentar publicación"
-        : "Publicar ahora"}</button>
+    <div class="admin-banner" data-publication-phase="${state.publication.phase}" role="region" aria-label="Estado de publicación">
+      <div class="admin-banner__copy">
+        <strong>${title}</strong>
+        <span>${description}</span>
+      </div>
+      ${actionLabel
+        ? `<button class="admin-button" type="button" data-admin-action="${adminActions.publish}" ${disabledAttr(isBusy)}>${actionLabel}</button>`
+        : ""}
     </div>
   `;
+}
+
+function getPublicationBannerContent(state: AdminOperationalState): {
+  title: string;
+  description: string;
+  actionLabel: string | null;
+} {
+  if (state.publication.phase === "publishing") {
+    return state.publication.has_newer_changes
+      ? {
+          title: "Publicando los cambios anteriores…",
+          description: "Tus cambios nuevos quedaron guardados para la próxima publicación.",
+          actionLabel: null,
+        }
+      : {
+          title: "Publicando cambios…",
+          description: "Podés seguir trabajando.",
+          actionLabel: null,
+        };
+  }
+
+  if (state.publication.phase === "failed") {
+    return {
+      title: "No se pudo publicar.",
+      description: "Tus cambios siguen guardados.",
+      actionLabel: state.publication.can_retry ? "Reintentar" : null,
+    };
+  }
+
+  return {
+    title: "Hay cambios guardados sin publicar.",
+    description: "Todavía no se ven en el menú.",
+    actionLabel: "Publicar cambios",
+  };
 }

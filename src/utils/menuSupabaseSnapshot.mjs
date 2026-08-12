@@ -52,6 +52,43 @@ export const loadRows = async (sql) => {
   };
 };
 
+const publicationSnapshotVersionOneFields = [
+  ["profiles", "profiles"],
+  ["profile_facts", "facts"],
+  ["prices", "prices"],
+  ["price_variants", "priceVariants"],
+  ["daily_items", "dailyItems"],
+  ["profile_service_settings", "profileServiceSettings"],
+  ["catalog_sections", "catalogSections"],
+  ["catalog_items", "catalogItems"],
+  ["catalog_item_images", "catalogItemImages"],
+  ["catalog_item_options", "catalogItemOptions"],
+  ["grill_families", "grillFamilies"],
+  ["grill_items", "grillItems"],
+];
+
+export const rowsFromPublicationSnapshot = (contentSnapshot, snapshotVersion) => {
+  if (snapshotVersion !== 1) {
+    throw new Error("Menu publication snapshot version is unsupported.");
+  }
+
+  if (!contentSnapshot || typeof contentSnapshot !== "object" || Array.isArray(contentSnapshot)) {
+    throw new Error("Menu publication content snapshot must be an object.");
+  }
+
+  return Object.fromEntries(
+    publicationSnapshotVersionOneFields.map(([snapshotKey, rowKey]) => {
+      const value = contentSnapshot[snapshotKey];
+
+      if (!Array.isArray(value)) {
+        throw new Error(`Menu publication content snapshot field is invalid: ${snapshotKey}.`);
+      }
+
+      return [rowKey, value];
+    }),
+  );
+};
+
 /** @returns {MenuContentSnapshot} */
 export const createSnapshot = (rows, options = {}) => {
   const transformImages =

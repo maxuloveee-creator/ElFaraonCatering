@@ -31,6 +31,8 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 ### Static-first architecture
 
 - Structural content, service selection, menu text, catalog, images, and prices are build-time data. Admin changes to them require rebuild/deploy before public menus change.
+- A publication captures one immutable JSONB revision. Every production build must render that exact revision; later admin edits belong to a later publication.
+- A Deploy Hook acknowledgement means only `triggered`. Publication becomes `succeeded` only after trusted promotion evidence proves that the canonical admin or a signed Vercel `deployment.promoted` event serves the expected immutable revision.
 - Availability is progressive runtime data and may only alter visual availability. A missing overlay means available.
 - Do not add direct runtime queries for build-time content. Admin reads use approved RPCs; public runtime reads stay limited to the availability contract.
 - Do not add `@supabase/supabase-js` to browser code unless a required capability justifies an explicit architecture change.
@@ -77,6 +79,7 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 
 - Supabase and Vercel are external systems. Any deploy, release, remote mutation, or remote user creation/revocation/deletion requires explicit user scope.
 - Never expose service-role credentials or the Vercel Deploy Hook in browser code.
+- Never expose the Vercel webhook secret or deployment bypass secret in browser code. Keep canonical artifact probes, webhook verification, project scoping, evidence recording, and publication transitions inside `publish-menu-changes`.
 - `publish-menu-changes` is the only approved Edge Function. Adding another Function/publication path or executing a real deployment requires an explicit user request.
 
 ## Validation

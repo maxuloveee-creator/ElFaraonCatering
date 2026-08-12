@@ -307,6 +307,29 @@
     box-shadow: 0 0.65rem 1.5rem rgb(var(--admin-warning-rgb) / 0.08);
   }
 
+  .admin-banner__copy {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .admin-banner__copy span {
+    font-weight: 500;
+  }
+
+  .admin-banner[data-publication-phase="publishing"] {
+    color: var(--admin-text);
+    background: var(--admin-surface-muted);
+    border-color: var(--admin-border-strong);
+    box-shadow: none;
+  }
+
+  .admin-banner[data-publication-phase="failed"] {
+    color: var(--admin-danger);
+    background: var(--admin-danger-surface);
+    border-color: var(--admin-danger-border);
+    box-shadow: none;
+  }
+
   .admin-status {
     color: var(--admin-text-muted);
     font-size: 0.92rem;

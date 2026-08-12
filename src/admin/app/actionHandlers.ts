@@ -1,5 +1,4 @@
 import type { createAdminFormState } from "./formState";
-import type { createAdminPublicationState } from "./publicationState";
 import type { createAdminSessionController } from "./session";
 import {
   handleClearOverlayAction,
@@ -33,7 +32,6 @@ export interface AdminActionHandlerContext {
   formState: ReturnType<typeof createAdminFormState>;
   sessionController: ReturnType<typeof createAdminSessionController>;
   adminOperations: ReturnType<typeof createAdminOperations>;
-  publicationState: ReturnType<typeof createAdminPublicationState>;
   getCurrentState(): AdminOperationalState | null;
   loadAdminState(): Promise<AdminOperationalState>;
   renderCurrentView(options?: RenderOptions): void;

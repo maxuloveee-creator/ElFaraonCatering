@@ -15,6 +15,41 @@ const rules = requireAdminModule("core/rules");
 const selectors = requireAdminModule("core/selectors");
 const adminState = requireAdminModule("core/adminState");
 
+test("admin state preserves the canonical server publication contract", () => {
+  const publication = {
+    phase: "publishing",
+    has_newer_changes: true,
+    can_retry: false,
+    requested_at: "2026-08-12T12:00:00Z",
+    expires_at: "2026-08-12T12:15:00Z",
+  };
+
+  assert.deepEqual(
+    adminState.normalizeAdminState(createState({ publication })).publication,
+    publication,
+  );
+});
+
+test("admin state fails closed for malformed publication state", () => {
+  const normalized = adminState.normalizeAdminState(createState({
+    publication: {
+      phase: "unknown",
+      has_newer_changes: "yes",
+      can_retry: "yes",
+      requested_at: "",
+      expires_at: "",
+    },
+  }));
+
+  assert.deepEqual(normalized.publication, {
+    phase: "failed",
+    has_newer_changes: false,
+    can_retry: false,
+    requested_at: null,
+    expires_at: null,
+  });
+});
+
 test("availability targets match each profile active service", () => {
   const state = createState();
   const targetKeys = selectors.getVisibleAvailabilityTargets(state).map((target) =>

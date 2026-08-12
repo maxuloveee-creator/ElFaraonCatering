@@ -9,7 +9,15 @@ const privateDatabaseUrlEnvNames = [
   ["SUPABASE", "AUDIT", "DB", "URL"].join("_"),
 ];
 const privateDeployHookEnvName = ["VERCEL", "DEPLOY", "HOOK", "URL"].join("_");
-const privateEnvNames = [...privateDatabaseUrlEnvNames, privateDeployHookEnvName];
+const privateWebhookEnvNames = [
+  ["VERCEL", "WEBHOOK", "SECRET"].join("_"),
+  ["VERCEL", "DEPLOYMENT", "BYPASS", "SECRET"].join("_"),
+];
+const privateEnvNames = [
+  ...privateDatabaseUrlEnvNames,
+  privateDeployHookEnvName,
+  ...privateWebhookEnvNames,
+];
 
 loadLocalEnv(rootDir);
 
