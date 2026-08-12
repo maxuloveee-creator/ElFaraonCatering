@@ -15,8 +15,9 @@
     "check:js": "node scripts/check-js-syntax.mjs",
     "lint": "eslint .",
     "test:admin": "node --test scripts/test-admin-rules-selectors.mjs scripts/test-admin-render-contracts.mjs scripts/test-admin-operations.mjs scripts/test-admin-session-publication.mjs",
+    "test:edge": "deno test supabase/functions/publish-menu-changes/vercelWebhook.test.ts",
     "test:menu": "node --test scripts/test-menu-availability-overlay.mjs",
-    "test:tools": "node --test scripts/test-handoff-guards.mjs scripts/test-menu-publication-build.mjs scripts/test-menu-publication-migration.mjs scripts/test-supabase-postgres-client.mjs",
+    "test:tools": "node --test scripts/test-handoff-guards.mjs scripts/test-menu-publication-build.mjs scripts/test-menu-publication-migration.mjs scripts/test-supabase-postgres-client.mjs && npm run test:edge",
     "menu:validate": "node scripts/validate-menu-supabase.mjs",
     "verify:dist-secrets": "node scripts/verify-dist-secrets.mjs",
     "supabase:audit": "node scripts/audit-supabase-readonly.mjs",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@eslint/js": "^10.0.1",
+    "deno": "2.1.14",
     "eslint": "^10.8.0",
     "globals": "^17.9.0",
     "jsdom": "^29.1.1",
