@@ -82,6 +82,8 @@ SUPABASE_AUDIT_DB_URL=
 
 Las variables `PUBLIC_*` son intencionalmente visibles para el cliente. `SUPABASE_DB_URL` y `SUPABASE_AUDIT_DB_URL` son privadas y no deben llevar ese prefijo. La primera usa el rol de lectura minimo para build; la segunda se reserva para auditorias locales. Los tokens del CLI y los secretos de `publish-menu-changes` se configuran por separado; sus nombres y procedimiento estan documentados en el [runbook de Supabase](./docs/supabase/README.md#variables).
 
+Las conexiones Postgres privadas validan la CA y el hostname mediante la factory compartida `src/utils/supabasePostgresClient.mjs` y el certificado publico versionado `config/certs/supabase-prod-ca-2021.crt`. Los DSN deben omitir `sslmode` o usar `sslmode=verify-full`; no se admite desactivar la validacion TLS ni reemplazar la CA desde la URL.
+
 ## Scripts npm
 
 ### Aplicacion y checks locales
@@ -100,6 +102,7 @@ Las variables `PUBLIC_*` son intencionalmente visibles para el cliente. `SUPABAS
 | `npm run menu:validate` | Valida contenido y hardening esperado en Supabase. Requiere `SUPABASE_DB_URL`. |
 | `npm run verify:dist-secrets` | Revisa un `dist/` ya generado en busca de marcadores de secretos. |
 | `npm run supabase:audit` | Ejecuta auditorias SQL y probes read-only del Data API. Requiere `SUPABASE_AUDIT_DB_URL` y las dos variables `PUBLIC_SUPABASE_*`. |
+| `npm run supabase:tls:verify` | Verifica en vivo conexiones autenticadas y el rechazo de CA/hostname incorrectos. Requiere ambos DSN privados y OpenSSL. |
 
 ### Imagenes fuente del menu
 
@@ -139,6 +142,8 @@ npm run verify:dist-secrets
 ```
 
 Los cambios de schema, permisos o contenido build-time siguen la secuencia read-only y los procedimientos remotos del [runbook de Supabase](./docs/supabase/README.md#validacion-local-y-read-only).
+
+Antes de activar o cambiar SSL Enforcement en Supabase, ejecutar tambien `npm run supabase:tls:verify`. Ese comando es read-only, no modifica la configuracion remota y no imprime los DSN.
 
 ## Mapa del repositorio
 

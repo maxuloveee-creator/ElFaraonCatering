@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import postgres from "postgres";
+import {
+  createSupabasePostgresClient,
+  sanitizeSupabasePostgresError,
+} from "../src/utils/supabasePostgresClient.mjs";
 import { loadLocalEnv } from "./load-local-env.mjs";
 import { auditProtectedSchemasNotExposed } from "./supabase-platform-audit.mjs";
 
@@ -29,10 +32,7 @@ if (!publicSupabaseUrl || !publicSupabaseAnonKey) {
   process.exit(1);
 }
 
-const sql = postgres(databaseUrl, {
-  max: 1,
-  prepare: false,
-});
+const sql = createSupabasePostgresClient(databaseUrl);
 
 const failures = [];
 
@@ -233,9 +233,5 @@ function formatRow(row) {
 }
 
 function sanitizeError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-
-  return message
-    .replaceAll(databaseUrl, "[redacted]")
-    .replaceAll(publicSupabaseAnonKey, "[redacted]");
+  return sanitizeSupabasePostgresError(error, databaseUrl, [publicSupabaseAnonKey]);
 }

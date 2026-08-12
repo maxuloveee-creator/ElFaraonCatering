@@ -1,9 +1,12 @@
-import postgres from "postgres";
 import { loadSupabaseMenuSnapshot } from "./menu-content-supabase.mjs";
 import {
   isMenuPlaceholderImagePath,
   isSafeMenuImagePath,
 } from "../src/utils/menuImagePath.mjs";
+import {
+  createSupabasePostgresClient,
+  sanitizeSupabasePostgresError,
+} from "../src/utils/supabasePostgresClient.mjs";
 
 const expectedMenuIds = ["corpo", "teleinde"];
 const privateDatabaseUrlEnvName = ["SUPABASE", "DB", "URL"].join("_");
@@ -76,10 +79,7 @@ try {
 
 validateSnapshot(snapshot, errors);
 
-const sql = postgres(databaseUrl, {
-  max: 1,
-  prepare: false,
-});
+const sql = createSupabasePostgresClient(databaseUrl);
 
 try {
   await validateSchema(sql, errors);
@@ -596,7 +596,5 @@ function assertUnique(values, label, errors) {
 }
 
 function sanitizeError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-
-  return databaseUrl ? message.replaceAll(databaseUrl, "[redacted]") : message;
+  return sanitizeSupabasePostgresError(error, databaseUrl);
 }

@@ -73,6 +73,20 @@ El baseline es solo para bases nuevas. No debe aplicarse sobre una base existent
 
 `SUPABASE_DB_URL`, `SUPABASE_AUDIT_DB_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` y `VERCEL_DEPLOY_HOOK_URL` son privados. No deben exponerse como `PUBLIC_*`, registrarse en logs ni versionarse. `../../.env.example` enumera las variables locales sin valores reales.
 
+### TLS de conexiones Postgres
+
+Los cuatro consumidores directos de Postgres (build de Astro, lectura del snapshot, validacion de menu y auditoria privilegiada) deben usar exclusivamente `../../src/utils/supabasePostgresClient.mjs`. La factory carga `../../config/certs/supabase-prod-ca-2021.crt`, exige validacion de CA y hostname, y rechaza configuraciones que debiliten o reemplacen esa politica.
+
+El certificado raiz es publico y se versiona; no contiene credenciales. Los DSN privados pueden omitir `sslmode` o declarar `sslmode=verify-full`. No usar `disable`, `allow`, `prefer`, `require`, `verify-ca`, `NODE_TLS_REJECT_UNAUTHORIZED=0` ni parametros de certificado dentro del DSN.
+
+`npm run test:tools` verifica offline que la CA sea valida y tenga al menos un ano de vigencia restante, que los DSN degradados fallen antes de conectar y que no exista ningun `postgres()` fuera de la factory. `npm run supabase:tls:verify` usa ambos DSN privados y OpenSSL para demostrar en vivo:
+
+- conexion exitosa con la CA y el hostname correctos
+- rechazo con una CA temporal incorrecta
+- rechazo con un hostname incorrecto
+
+El verificador en vivo es read-only, no cambia SSL Enforcement y no imprime credenciales.
+
 `menu_build_ci` se crea sin login mediante migracion. Su contraseña se provisiona fuera del repositorio. Solo recibe lectura de las tablas build-time, las columnas de identificacion del overlay y la funcion privada de fingerprint. No recibe acceso a `staff_users`, tablas de `app_private`, Auth ni historial de migraciones. Las tablas build-time nuevas requieren un grant explicito en su migracion.
 
 ## Validacion local y read-only
@@ -83,6 +97,7 @@ Antes de considerar una mutacion remota, ejecutar las auditorias SQL contra `SUP
 npm audit --audit-level=high
 npm run supabase:audit
 npm run menu:validate
+npm run supabase:tls:verify
 npm run check:js
 npm run lint
 npm run test:admin
@@ -125,6 +140,19 @@ Estado esperado:
 6. Repetir audits, build y checks despues de la mutacion.
 
 El remoto de handoff puede conservar el historial pre-squash completo sin representar drift. La equivalencia se determina por schema, contenido, funciones, permisos, policies y fingerprint, no por tener una sola fila de migracion.
+
+### Activar SSL Enforcement
+
+SSL Enforcement rechaza conexiones Postgres sin TLS y su cambio reinicia brevemente la base. La validacion autenticada del cliente debe quedar desplegada antes de activarlo.
+
+1. Ejecutar la secuencia de validacion local y `npm run supabase:tls:verify` con ambos DSN de produccion.
+2. Publicar la version validada de la aplicacion y confirmar que build, validacion de menu y auditoria siguen conectando.
+3. En Supabase Dashboard, abrir **Database Settings -> SSL Configuration** y activar **Enforce SSL on incoming connections**. Esta es una mutacion remota y requiere autorizacion explicita.
+4. Esperar que finalice el reinicio breve de la base y repetir `npm run supabase:tls:verify`, `npm run menu:validate`, `npm run supabase:audit`, `npm run build` y `npm run verify:dist-secrets`.
+5. Confirmar por separado que una conexion sin TLS sea rechazada. No debilitar temporalmente la factory para hacer esa prueba.
+6. Cuando el rollout quede estable, rotar las credenciales Postgres que pudieron haberse usado antes de la validacion autenticada.
+
+Si la CA cambia o el test informa menos de un ano de vigencia restante, descargar el nuevo **Server root certificate** desde el mismo proyecto, validar su fingerprint y vigencia, comprobarlo contra el hostname real y reemplazar el archivo versionado antes de desplegar. Nunca agregar una CA desconocida para silenciar un error de conexion.
 
 ### Base nueva
 
