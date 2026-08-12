@@ -20,7 +20,7 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 - `menu_content` in Supabase is the build-time source for structural and operational menu content.
 - `public.menu_availability_overlays` is the only runtime menu-data overlay.
 - `public.staff_users` is the staff role source for the operational CMS.
-- Browser admin writes use approved RPCs; browser code must not receive direct table grants to protected content.
+- Browser admin reads and operational writes use approved public RPCs; browser code must not query or mutate protected content tables directly.
 - YAML is not active content. `yaml-rollback-2026-05-02` is only the historical file-backed rollback point.
 - `README.md` is the human setup/product manual. `docs/supabase/README.md` is the detailed database workflow. Code, migrations, tests, and those documents carry exhaustive contracts; these guides carry decision-critical constraints.
 - When setup, scripts, environment variables, content sources, routes, or deployment behavior change, update the affected README/docs and applicable agent guide without duplicating exhaustive documentation here.
@@ -56,7 +56,8 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 
 - Do not add ordering, cart, checkout, payments, reservations, customer accounts, WhatsApp ordering, SSR, server output, API routes, Vercel Functions, or broad editorial CMS behavior without explicit scope.
 - Informational contact or WhatsApp profile links are allowed, but must not become ordering CTAs or handoff flows.
-- The operational CMS may manage daily menu, active service, availability, grill products/options, fixed-menu content/options, global prices, staff access, and publication. It is not a general website CMS.
+- The operational CMS may manage daily menu, active service, availability, grill products/options, fixed-menu content/options, global prices, and publication. It is not a general website CMS.
+- Staff lifecycle is outside the CMS. Auth user creation/invitation/revocation/deletion and `staff_users` role, active-state, or default-profile changes require an explicitly authorized privileged external operation.
 - Staff auth must not expand into customer, institutional-site, or public accounts.
 - Keep `/admin/` static Astro. Do not add SSR, server output, API routes, or a second server/runtime surface.
 - Keep compatibility with Node 22, Astro 7, current routes, and the static-first model unless an upgrade or architecture change is explicitly requested.
@@ -88,6 +89,8 @@ Current stack: Astro 7, TypeScript, Tailwind CSS 4, Node 22 LTS, npm, Supabase P
 - Run `npm run test:admin` for admin rules, selectors, rendering, operations, edit policy, or availability grouping.
 - Run `npm run test:menu` for the public availability overlay.
 - Run `npm run check:js` for public scripts, Node `.mjs` code, and shared JavaScript utilities.
+- Run `npm run test:edge` after changes to `publish-menu-changes` routing, canonical artifact parsing, or signed Vercel promotion-webhook validation.
+- Run `npm run test:tools` after changes to handoff guards, publication build/migration tooling, the shared Postgres client, or Edge publication helpers; it runs `npm run test:edge` after its Node test suites.
 - Run `npm run lint` after TypeScript, public-script, Node utility, or Edge Function changes.
 - After application builds, run `npm run verify:dist-secrets` before delivery.
 - Supabase schema, grants, policies, RPCs, audits, and menu validation follow `supabase/AGENTS.md`.

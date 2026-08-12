@@ -9,12 +9,13 @@
 
 ### CMS boundary
 
-- Browser reads use `public.get_admin_operational_state()`. Browser writes use approved public RPC wrappers. Never query `menu_content` or `app_private` directly from browser code.
+- Browser reads use `public.get_admin_operational_state()`. Browser operational writes use approved public RPC wrappers. Never query or mutate `menu_content`, `app_private`, or other protected tables directly from browser code.
 
 ### Roles and publication
 
 - `operator` may use every current operational edit surface for every profile, including requesting publication.
-- `admin` includes operator capabilities and may manage staff only through privileged SQL/RPC surfaces. `default_availability_profile_id` is a UI default, never a permission boundary.
+- `admin` includes operator capabilities. The CMS exposes no staff-lifecycle surface: Auth user creation/invitation/revocation/deletion and `staff_users` role, active-state, or default-profile changes happen only through an explicitly authorized privileged external operation. Existing table grants or policies do not make direct browser writes a supported CMS contract.
+- `default_availability_profile_id` is a UI default, never a permission boundary.
 - Preserve the `can_edit_menu_content()` wrapper/privilege contract and approved RPC surface.
 - Publication UI consumes the server-backed phase (`up_to_date`, `changes_pending`, `publishing`, or `failed`) and polls while publishing. Never use browser storage, a local cooldown, a fabricated fingerprint, or a Deploy Hook response as publication truth.
 - Polling calls the authenticated `publish-menu-changes/status` path so the same Edge Function can reconcile the canonical deployed artifact before the admin reloads state. Also reconcile once at login and, with a bounded throttle, when a visible panel regains focus so rollbacks are observed without probing after every edit. This fallback must work without a Vercel Account Webhook.
@@ -47,4 +48,7 @@
 ## Validation
 
 - Preserve confirmations for destructive editorial actions and clear server-error handling.
+- Run `npm run test:admin` for admin rules, selectors, rendering, operations, session, or publication behavior.
+- If an admin publication change also touches Edge routing, canonical artifact parsing, or promotion-webhook validation, run `npm run test:edge`.
+- If it touches handoff guards, publication build/migration tooling, the shared Postgres client, or Edge publication helpers, run `npm run test:tools`; it already invokes `npm run test:edge`.
 - If RPC or database contracts change, also run checks required by `supabase/AGENTS.md`.
