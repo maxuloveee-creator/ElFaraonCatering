@@ -10,6 +10,13 @@ const migrationPath = path.join(
   "20260812040001_add_immutable_menu_publications.sql",
 );
 const migration = await readFile(migrationPath, "utf8");
+const evidenceRegexFixPath = path.join(
+  process.cwd(),
+  "supabase",
+  "migrations",
+  "20260812055729_fix_publication_evidence_regex.sql",
+);
+const evidenceRegexFix = await readFile(evidenceRegexFixPath, "utf8");
 
 const getFunctionSource = (signature, nextStatement) => {
   const start = migration.indexOf(signature);
@@ -71,6 +78,27 @@ test("confirmation records append-only evidence and links only revision members"
   assert.match(confirmation, /state\.active_request_id = confirm_menu_publish_deployment\.request_id/);
   assert.doesNotMatch(confirmation, /event\.created_at <= request_created_at/);
   assert.doesNotMatch(confirmation, /update app_private\.menu_publication_promotions/);
+});
+
+test("evidence IDs use PostgreSQL-safe length and character validation", () => {
+  assert.match(
+    evidenceRegexFix,
+    /create or replace function public\.confirm_menu_publish_deployment/,
+  );
+  assert.match(
+    evidenceRegexFix,
+    /char_length\(confirmation_event_id\) between 1 and 256/,
+  );
+  assert.match(
+    evidenceRegexFix,
+    /char_length\(evidence_event_id\) between 1 and 256/,
+  );
+  assert.match(
+    evidenceRegexFix,
+    /char_length\(normalized_event_id\) > 256/,
+  );
+  assert.match(evidenceRegexFix, /normalized_event_id ~ '\[\^A-Za-z0-9:_-\]'/);
+  assert.doesNotMatch(evidenceRegexFix, /\{1,256\}/);
 });
 
 test("deploy-hook start is idempotent after a fast promotion", () => {

@@ -48,6 +48,7 @@ La migracion activa para bases nuevas es:
 | `20260723230712_add_menu_build_ci_role.sql` | Crea el rol de build sin login y limita sus grants al contenido, overlay y fingerprint requeridos. |
 | `20260808233225_standardize_teleinde_whatsapp.sql` | Normaliza el enlace de WhatsApp de Teleinde al formato internacional movil `54911`. |
 | `20260812040001_add_immutable_menu_publications.sql` | Agrega revisiones JSONB inmutables, target exacto de build, fases server-side y confirmacion de promocion de Vercel. |
+| `20260812055729_fix_publication_evidence_regex.sql` | Corrige la validacion de IDs de evidencia para el limite de cuantificadores del motor regex de PostgreSQL. |
 
 El tag anotado `supabase-prelaunch-history-2026-07-07` conserva la historia incremental inmediatamente anterior al squash actual. `supabase-prelaunch-history-2026-06-06` es un corte historico anterior; no es el tag de la baseline vigente. `yaml-rollback-2026-05-02` conserva el ultimo estado file-backed, pero YAML ya no es fuente activa.
 
