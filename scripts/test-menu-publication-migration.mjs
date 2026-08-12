@@ -17,6 +17,13 @@ const evidenceRegexFixPath = path.join(
   "20260812055729_fix_publication_evidence_regex.sql",
 );
 const evidenceRegexFix = await readFile(evidenceRegexFixPath, "utf8");
+const adminEditorStateFixPath = path.join(
+  process.cwd(),
+  "supabase",
+  "migrations",
+  "20260812062557_restore_admin_editor_state.sql",
+);
+const adminEditorStateFix = await readFile(adminEditorStateFixPath, "utf8");
 
 const getFunctionSource = (signature, nextStatement) => {
   const start = migration.indexOf(signature);
@@ -128,4 +135,38 @@ test("admin state and grants expose only the server-derived operational phase", 
   assert.match(publicationState, /'expires_at', case when phase = 'publishing' then active_expires_at else null end/);
   assert.match(migration, /grant execute on function app_private\.get_menu_publication_state\(\) to authenticated/);
   assert.match(migration, /revoke all on table app_private\.menu_publication_promotions from public, anon, authenticated, service_role/);
+});
+
+test("admin state correction preserves every editor and staff preference", () => {
+  assert.match(
+    adminEditorStateFix,
+    /create or replace function public\.get_admin_operational_state\(\)/,
+  );
+  assert.match(adminEditorStateFix, /app_private\.get_admin_operational_state\(\)/);
+  assert.match(
+    adminEditorStateFix,
+    /'catalog_editor', app_private\.get_admin_catalog_editor_state\(\)/,
+  );
+  assert.match(
+    adminEditorStateFix,
+    /'grill_editor', app_private\.get_admin_grill_editor_state\(\)/,
+  );
+  assert.match(
+    adminEditorStateFix,
+    /'publication', app_private\.get_menu_publication_state\(\)/,
+  );
+  assert.match(adminEditorStateFix, /staff\.default_availability_profile_id/);
+  assert.match(
+    adminEditorStateFix,
+    /\{staff,default_availability_profile_id\}/,
+  );
+  assert.match(adminEditorStateFix, /security invoker/);
+  assert.match(
+    adminEditorStateFix,
+    /revoke all on function public\.get_admin_operational_state\(\) from public, anon/,
+  );
+  assert.match(
+    adminEditorStateFix,
+    /grant execute on function public\.get_admin_operational_state\(\) to authenticated/,
+  );
 });
