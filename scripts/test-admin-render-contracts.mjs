@@ -510,33 +510,73 @@ test("service view exposes daily menu and fixed price contracts", () => {
   assert.ok(hasForm(html, adminForms.fixedPrice));
 });
 
-test("publish banner keeps publication actionable while a request is pending", () => {
+test("publish banner renders the server publication phases without technical details", () => {
+  const upToDateState = createState();
   const pendingState = createState({
     publication: {
-      has_unpublished_changes: true,
-      publish_requested: false,
+      phase: "changes_pending",
     },
   });
-  const requestedState = createState({
+  const publishingState = createState({
     publication: {
-      has_unpublished_changes: true,
-      publish_requested: true,
+      phase: "publishing",
+      requested_at: "2026-08-12T12:00:00Z",
     },
   });
-  const deniedState = createState({
-    permissions: {
-      can_publish_menu: false,
-    },
+  const publishingNewerState = createState({
     publication: {
-      has_unpublished_changes: true,
-      publish_requested: false,
+      phase: "publishing",
+      has_newer_changes: true,
+      requested_at: "2026-08-12T12:00:00Z",
+    },
+  });
+  const failedState = createState({
+    publication: {
+      phase: "failed",
+      can_retry: true,
+      requested_at: "2026-08-12T12:00:00Z",
     },
   });
 
+  assert.equal(renderShell(upToDateState).includes("admin-banner"), false);
+  assert.ok(renderShell(pendingState).includes("Hay cambios guardados sin publicar."));
+  assert.ok(renderShell(pendingState).includes("Todavía no se ven en el menú."));
+  assert.ok(renderShell(pendingState).includes("Publicar cambios"));
   assert.ok(hasAction(renderShell(pendingState), adminActions.publish));
-  assert.ok(hasAction(renderShell(requestedState), adminActions.publish));
-  assert.ok(renderShell(requestedState).includes("Reintentar publicación"));
-  assert.equal(hasAction(renderShell(deniedState), adminActions.publish), false);
+  assert.ok(renderShell(publishingState).includes("Publicando cambios…"));
+  assert.ok(renderShell(publishingState).includes("Podés seguir trabajando."));
+  assert.equal(hasAction(renderShell(publishingState), adminActions.publish), false);
+  assert.ok(renderShell(publishingNewerState).includes("Publicando los cambios anteriores…"));
+  assert.ok(renderShell(publishingNewerState).includes("Tus cambios nuevos quedaron guardados para la próxima publicación."));
+  assert.equal(hasAction(renderShell(publishingNewerState), adminActions.publish), false);
+  assert.ok(renderShell(failedState).includes("No se pudo publicar."));
+  assert.ok(renderShell(failedState).includes("Tus cambios siguen guardados."));
+  assert.ok(renderShell(failedState).includes("Reintentar"));
+  assert.ok(hasAction(renderShell(failedState), adminActions.publish));
+
+  for (const html of [
+    renderShell(pendingState),
+    renderShell(publishingState),
+    renderShell(publishingNewerState),
+    renderShell(failedState),
+  ]) {
+    assert.equal(/hash|cooldown|vercel|recargá|segundos restantes/i.test(html), false);
+    assert.ok(html.includes('role="region" aria-label="Estado de publicación"'));
+  }
+});
+
+test("publish banner hides unavailable actions", () => {
+  const failedWithoutRetry = createState({
+    publication: { phase: "failed", can_retry: false },
+  });
+  const deniedState = createState({
+    permissions: { can_publish_menu: false },
+    publication: { phase: "changes_pending" },
+  });
+
+  assert.equal(hasAction(renderShell(failedWithoutRetry), adminActions.publish), false);
+  assert.equal(renderShell(failedWithoutRetry).includes("Reintentar"), false);
+  assert.equal(renderShell(deniedState).includes("admin-banner"), false);
 });
 
 function renderShell(state) {

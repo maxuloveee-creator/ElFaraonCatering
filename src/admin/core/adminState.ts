@@ -26,8 +26,6 @@ export function getOverlayKey(overlay: {
 
 export function normalizeAdminState(
   state: AdminOperationalState,
-  deployedContentHash = "",
-  requestedPublishHash = "",
 ): AdminOperationalState {
   return {
     ...state,
@@ -60,41 +58,34 @@ export function normalizeAdminState(
     },
     publication: normalizePublicationState(
       (state as Partial<AdminOperationalState>).publication,
-      deployedContentHash,
-      requestedPublishHash,
     ),
   };
 }
 
 function normalizePublicationState(
   publication: Partial<AdminOperationalState["publication"]> | undefined,
-  deployedContentHash: string,
-  requestedPublishHash: string,
 ): AdminOperationalState["publication"] {
-  const currentContentHash = typeof publication?.current_content_hash === "string"
-    ? publication.current_content_hash
-    : "";
-  const publishedContentHash = typeof publication?.published_content_hash === "string"
-    ? publication.published_content_hash
-    : currentContentHash;
-  const normalizedDeployedContentHash = normalizeContentHash(deployedContentHash) ?? "";
-  const normalizedRequestedPublishHash = normalizeContentHash(requestedPublishHash);
+  const phase = publication?.phase;
 
   return {
-    current_content_hash: currentContentHash,
-    published_content_hash: publishedContentHash,
-    deployed_content_hash: normalizedDeployedContentHash,
-    has_unpublished_changes: currentContentHash !== normalizedDeployedContentHash,
-    publish_requested:
-      currentContentHash !== normalizedDeployedContentHash
-      && currentContentHash === normalizedRequestedPublishHash,
+    phase:
+      phase === "up_to_date"
+      || phase === "changes_pending"
+      || phase === "publishing"
+      || phase === "failed"
+        ? phase
+        : "failed",
+    has_newer_changes: publication?.has_newer_changes === true,
+    can_retry: publication?.can_retry === true,
+    requested_at:
+      typeof publication?.requested_at === "string" && publication.requested_at.trim()
+        ? publication.requested_at
+        : null,
+    expires_at:
+      typeof publication?.expires_at === "string" && publication.expires_at.trim()
+        ? publication.expires_at
+        : null,
   };
-}
-
-function normalizeContentHash(value: string): string | null {
-  const trimmedValue = value.trim();
-
-  return /^[a-f0-9]{32}$/.test(trimmedValue) ? trimmedValue : null;
 }
 
 function normalizeGrillFamily(family: GrillFamilyState): GrillFamilyState {

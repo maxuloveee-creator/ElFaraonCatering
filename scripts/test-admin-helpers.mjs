@@ -166,11 +166,11 @@ export function createState(overrides = {}) {
       ],
     },
     publication: {
-      current_content_hash: "",
-      published_content_hash: "",
-      deployed_content_hash: "",
-      has_unpublished_changes: false,
-      publish_requested: false,
+      phase: "up_to_date",
+      has_newer_changes: false,
+      can_retry: false,
+      requested_at: null,
+      expires_at: null,
     },
   };
 

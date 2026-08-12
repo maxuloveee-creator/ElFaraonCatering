@@ -54,25 +54,7 @@ export function publicationSaveStatus(
   successPrefix: string,
   changed: boolean,
 ): (state: AdminOperationalState) => string {
-  return publicationStatus(
-    changed,
-    `${successPrefix} Falta publicar los cambios.`,
-    `${successPrefix} No hay cambios pendientes de publicación.`,
-  );
-}
-
-function publicationStatus(
-  changed: boolean,
-  pendingMessage: string,
-  cleanMessage: string,
-): (state: AdminOperationalState) => string {
-  return (state) => {
-    if (!changed) {
-      return "Sin cambios.";
-    }
-
-    return state.publication.has_unpublished_changes ? pendingMessage : cleanMessage;
-  };
+  return () => changed ? successPrefix : "Sin cambios.";
 }
 
 export function partialMutationError(error: unknown, results: RpcResult[]): Error {

@@ -16,8 +16,9 @@
 - `operator` may use every current operational edit surface for every profile, including requesting publication.
 - `admin` includes operator capabilities and may manage staff only through privileged SQL/RPC surfaces. `default_availability_profile_id` is a UI default, never a permission boundary.
 - Preserve the `can_edit_menu_content()` wrapper/privilege contract and approved RPC surface.
-- Publication-pending UI compares the current build-time fingerprint with the fingerprint embedded in deployed `/admin/`. Never use a session-only edited flag or latest publish request as truth.
-- Keep `cooldown_seconds_remaining` synchronized across Function, SQL helpers, client contracts, and UI.
+- Publication UI consumes the server-backed phase (`up_to_date`, `changes_pending`, `publishing`, or `failed`) and polls while publishing. Never use browser storage, a local cooldown, a fabricated fingerprint, or a Deploy Hook response as publication truth.
+- Polling calls the authenticated `publish-menu-changes/status` path so the same Edge Function can reconcile the canonical deployed artifact before the admin reloads state. Also reconcile once at login and, with a bounded throttle, when a visible panel regains focus so rollbacks are observed without probing after every edit. This fallback must work without a Vercel Account Webhook.
+- Keep publication copy operational: one clear action, automatic progress/success/failure updates, safe retry after failure, and an explicit note that edits made during a publish remain saved for the next one.
 
 ### Availability and service
 
@@ -41,7 +42,7 @@
 
 ## Sensitive/generated artifacts
 
-- Do not fabricate publication fingerprints in client state or fixtures.
+- Do not fabricate publication revisions, phases, or fingerprints in client state or fixtures.
 
 ## Validation
 

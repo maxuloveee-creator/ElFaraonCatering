@@ -3,12 +3,28 @@ import type {
   MenuContentSnapshot,
 } from "../types/menu";
 import { getSafeMenuImagePaths } from "./menuImagePath.mjs";
-import { createSnapshot, loadRows } from "./menuSupabaseSnapshot.mjs";
+import {
+  parseMenuPublicationRevisionRows,
+  readMenuPublicationBuildMetadata,
+} from "./menuPublicationBuild.mjs";
+import {
+  createSnapshot,
+  loadRows,
+  rowsFromPublicationSnapshot,
+} from "./menuSupabaseSnapshot.mjs";
 import { createSupabasePostgresClient } from "./supabasePostgresClient.mjs";
 
 type MenuDb = ReturnType<typeof postgres>;
 
-export const loadSupabaseMenuContentSnapshot = (): Promise<MenuContentSnapshot> =>
+export const loadSupabaseMenuContentSnapshot = (): Promise<MenuContentSnapshot> => {
+  if (import.meta.env.DEV) {
+    return loadLiveMenuContentSnapshot();
+  }
+
+  return loadPublicationMenuContentSnapshot();
+};
+
+const loadLiveMenuContentSnapshot = (): Promise<MenuContentSnapshot> =>
   withMenuDb(async (sql) => {
     const rows = await loadRows(sql);
     const snapshot = createSnapshot(rows, {
@@ -20,7 +36,39 @@ export const loadSupabaseMenuContentSnapshot = (): Promise<MenuContentSnapshot> 
     return snapshot;
   });
 
-export const loadSupabaseMenuPublicationContentHash = (): Promise<string> =>
+const loadPublicationMenuContentSnapshot = (): Promise<MenuContentSnapshot> => {
+  const target = readMenuPublicationBuildMetadata(getProcessEnvironment());
+
+  return withMenuDb(async (sql) => {
+    const rows = await sql`
+      select revision_id, content_hash, snapshot_version, content_snapshot
+      from app_private.get_menu_publication_revision(${target.revisionId}::uuid)
+    `;
+
+    const revision = parseMenuPublicationRevisionRows(rows, target);
+
+    const snapshot = createSnapshot(
+      rowsFromPublicationSnapshot(revision.content_snapshot, target.snapshotVersion),
+      { transformImages: getSafeMenuImagePaths },
+    );
+
+    assertMenuContentSnapshot(snapshot);
+
+    return snapshot;
+  });
+};
+
+export const loadSupabaseMenuPublicationContentHash = (): Promise<string> => {
+  if (!import.meta.env.DEV) {
+    return Promise.resolve(
+      readMenuPublicationBuildMetadata(getProcessEnvironment()).contentHash,
+    );
+  }
+
+  return loadLiveMenuPublicationContentHash();
+};
+
+const loadLiveMenuPublicationContentHash = (): Promise<string> =>
   withMenuDb(async (sql) => {
     const rows = await sql`
       select app_private.get_menu_publication_content_hash() as menu_content_hash
@@ -56,13 +104,14 @@ const withMenuDb = async <T>(query: (sql: MenuDb) => Promise<T>): Promise<T> => 
 };
 
 const getPrivateEnvironmentValue = (name: string): string | undefined =>
+  getProcessEnvironment()[name];
+
+const getProcessEnvironment = (): Record<string, string | undefined> =>
   (
     globalThis as typeof globalThis & {
-      process?: {
-        env?: Record<string, string | undefined>;
-      };
+      process?: { env?: Record<string, string | undefined> };
     }
-  ).process?.env?.[name];
+  ).process?.env ?? {};
 
 function assertMenuContentSnapshot(value: unknown): asserts value is MenuContentSnapshot {
   if (!isRecord(value)) {

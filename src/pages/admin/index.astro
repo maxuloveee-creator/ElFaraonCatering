@@ -1,9 +1,13 @@
 ---
 import "../../admin/styles.css";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { readMenuPublicationBuildMetadata } from "../../utils/menuPublicationBuild.mjs";
 import { loadSupabaseMenuPublicationContentHash } from "../../utils/menuSupabaseContent";
 
 const deployedContentHash = await loadSupabaseMenuPublicationContentHash();
+const publicationMetadata = import.meta.env.DEV
+  ? null
+  : readMenuPublicationBuildMetadata();
 ---
 
 <BaseLayout
@@ -14,6 +18,10 @@ const deployedContentHash = await loadSupabaseMenuPublicationContentHash();
     class="admin-root"
     data-admin-root
     data-deployed-content-hash={deployedContentHash}
+    data-publication-request-id={publicationMetadata?.requestId ?? ""}
+    data-publication-revision-id={publicationMetadata?.revisionId ?? ""}
+    data-publication-content-hash={deployedContentHash}
+    data-vercel-deployment-id={publicationMetadata?.deploymentId ?? ""}
   >
     <section class="admin-loading" aria-live="polite" aria-busy="true">
       <div class="admin-loading__panel">

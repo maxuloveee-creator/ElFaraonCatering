@@ -9,9 +9,14 @@ Runbook tecnico para la base Supabase del menu QR. Las migraciones canonicas viv
 - `public.staff_users`: empleados, roles y preferencia de local del CMS.
 - `public.get_admin_operational_state()`: lectura controlada para `/admin/`.
 - RPCs operativas publicas: unica superficie de escritura del navegador.
-- `app_private.menu_publish_requests`: solicitudes de publicacion y fingerprints.
+- `app_private.menu_publication_revisions`: snapshots JSONB inmutables del contenido solicitado.
+- `app_private.menu_publication_revision_events`: membresia exacta de cambios incluida en cada revision.
+- `app_private.menu_publish_requests`: solicitudes y fases de publicacion.
+- `app_private.menu_publication_state`: punteros singleton a la solicitud activa y revision desplegada.
+- `app_private.menu_publication_builds`: vinculo auditable entre un deployment de Vercel y su revision exacta.
+- `app_private.menu_publication_promotions`: evidencia append-only de promociones, re-promociones y rollbacks.
 - `app_private.menu_change_events`: cambios build-time asociados a una publicacion.
-- `publish-menu-changes`: Edge Function que valida al empleado y llama el Vercel Deploy Hook.
+- `publish-menu-changes`: Edge Function que valida al empleado, llama el Vercel Deploy Hook y reconcilia promociones por probe canonico o webhook firmado opcional.
 
 Salvo disponibilidad, los cambios operativos necesitan rebuild/deploy para impactar los menus publicos. El modelo completo y sus relaciones estan en [schema-diagram.md](./schema-diagram.md).
 
@@ -27,7 +32,11 @@ La disponibilidad cambia en runtime exclusivamente mediante `public.menu_availab
 
 `/admin/` autentica empleados con Supabase Auth. `operator` administra el contenido operativo de todos los perfiles y puede publicar; `admin` hereda ese alcance y puede gestionar staff a nivel de base/RPC. La aplicacion no tiene una pantalla de gestion de empleados.
 
-Las funciones publicas del admin son wrappers `security invoker`; sus cuerpos privilegiados viven en `app_private`. La excepcion son `public.reserve_menu_publish_request(...)` y `public.complete_menu_publish_request(...)`: son helpers service-role-only de `publish-menu-changes`, revocados para `anon` y `authenticated`.
+Las funciones publicas del admin son wrappers `security invoker`; sus cuerpos privilegiados viven en `app_private`. Los helpers `bootstrap_menu_publication_deployment`, `reserve_menu_publish_request`, `start_menu_publish_request`, `fail_menu_publish_request` y `confirm_menu_publish_deployment` son service-role-only para `publish-menu-changes` y el rollout inicial; estan revocados para `anon` y `authenticated`.
+
+Una solicitud de publicacion captura el snapshot, su hash y los IDs exactos de `menu_change_events` dentro de la misma sentencia MVCC. Solo puede existir una solicitud activa en `queued` o `triggered`; `expires_at`, derivado de `PUBLISH_STALE_SECONDS`, permite mostrar fallo y reintentar sin cooldown local si Vercel no completa el ciclo. El build resuelve una vez el target, vincula el `VERCEL_DEPLOYMENT_ID` y luego lee la revision por UUID; nunca vuelve a consultar contenido vivo para ese artefacto. Un `2xx` del Deploy Hook solo cambia la fase a `triggered`.
+
+Mientras la fase es `publishing`, y tambien una vez al iniciar sesion o volver al panel con un limite de una consulta por minuto, el admin consulta `POST /publish-menu-changes/status`. La Function verifica server-side el `/admin/` canonico y registra evidencia cuando sus metadatos coinciden con un build conocido. Esta reconciliacion automatica es el camino base, cubre rollbacks y no exige acciones del operador. Un Account Webhook `deployment.promoted` agrega confirmacion mas rapida cuando el plan de Vercel lo permite, pero Vercel no emite ese evento para rollbacks. Ambas fuentes escriben promociones append-only, actualizan la revision desplegada por `event_created_at` y admiten evidencia sin `request_id`.
 
 ## Baseline canonico
 
@@ -38,6 +47,7 @@ La migracion activa para bases nuevas es:
 | `20260707000000_prelaunch_baseline.sql` | Crea schemas, tablas, contenido build-time, RPCs, fingerprint, auditoria privada, publicacion, RLS, policies, grants y hardening del estado prelanzamiento. |
 | `20260723230712_add_menu_build_ci_role.sql` | Crea el rol de build sin login y limita sus grants al contenido, overlay y fingerprint requeridos. |
 | `20260808233225_standardize_teleinde_whatsapp.sql` | Normaliza el enlace de WhatsApp de Teleinde al formato internacional movil `54911`. |
+| `20260812040001_add_immutable_menu_publications.sql` | Agrega revisiones JSONB inmutables, target exacto de build, fases server-side y confirmacion de promocion de Vercel. |
 
 El tag anotado `supabase-prelaunch-history-2026-07-07` conserva la historia incremental inmediatamente anterior al squash actual. `supabase-prelaunch-history-2026-06-06` es un corte historico anterior; no es el tag de la baseline vigente. `yaml-rollback-2026-05-02` conserva el ultimo estado file-backed, pero YAML ya no es fuente activa.
 
@@ -46,7 +56,13 @@ El baseline incluye el contenido actual de `menu_content` y sincroniza las secue
 - `public.staff_users`
 - `public.menu_availability_overlays`
 - `app_private.menu_publish_requests`
+- `app_private.menu_publication_revisions`
+- `app_private.menu_publication_revision_events`
+- `app_private.menu_publication_builds`
+- `app_private.menu_publication_promotions`
 - `app_private.menu_change_events`
+
+`app_private.menu_publication_state` conserva una fila singleton sin target hasta ejecutar el bootstrap controlado. Por eso una base nueva o existente no puede construir produccion con la nueva version antes de completar el bootstrap del rollout.
 
 No incluye `auth.users`, secretos de Functions ni configuracion remota de Auth.
 
@@ -69,9 +85,14 @@ El baseline es solo para bases nuevas. No debe aplicarse sobre una base existent
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `VERCEL_DEPLOY_HOOK_URL`
 - `PUBLISH_ALLOWED_ORIGINS`
-- `PUBLISH_COOLDOWN_SECONDS` (default recomendado: `60`)
+- `PUBLISH_STALE_SECONDS` (default recomendado: `900`; rango aceptado: `60` a `3600`)
+- `PUBLISH_CANONICAL_ADMIN_URL` (produccion: `https://elfaraoncatering.com.ar/admin/`)
+- `VERCEL_PROJECT_ID`
+- `VERCEL_WEBHOOK_SECRET` (opcional; solo si se configura Account Webhook)
+- `VERCEL_TEAM_ID` (opcional; restringe el webhook al team esperado)
+- `VERCEL_DEPLOYMENT_BYPASS_SECRET` (opcional; permite verificar `/admin/` si el deployment tiene proteccion)
 
-`SUPABASE_DB_URL`, `SUPABASE_AUDIT_DB_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY` y `VERCEL_DEPLOY_HOOK_URL` son privados. No deben exponerse como `PUBLIC_*`, registrarse en logs ni versionarse. `../../.env.example` enumera las variables locales sin valores reales.
+`SUPABASE_DB_URL`, `SUPABASE_AUDIT_DB_URL`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_DEPLOY_HOOK_URL`, `VERCEL_WEBHOOK_SECRET` y `VERCEL_DEPLOYMENT_BYPASS_SECRET` son privados. No deben exponerse como `PUBLIC_*`, registrarse en logs ni versionarse. `../../.env.example` enumera las variables locales sin valores reales.
 
 ### TLS de conexiones Postgres
 
@@ -87,7 +108,9 @@ El certificado raiz es publico y se versiona; no contiene credenciales. Los DSN 
 
 El verificador en vivo es read-only, no cambia SSL Enforcement y no imprime credenciales.
 
-`menu_build_ci` se crea sin login mediante migracion. Su contraseña se provisiona fuera del repositorio. Solo recibe lectura de las tablas build-time, las columnas de identificacion del overlay y la funcion privada de fingerprint. No recibe acceso a `staff_users`, tablas de `app_private`, Auth ni historial de migraciones. Las tablas build-time nuevas requieren un grant explicito en su migracion.
+`menu_build_ci` se crea sin login mediante migracion. Su contraseña se provisiona fuera del repositorio. Conserva la lectura necesaria de las tablas build-time para validacion y recibe `execute` sobre las funciones privadas de hash, target y revision. No recibe `select` directo sobre tablas de `app_private`, `staff_users`, Auth ni historial de migraciones. `get_menu_publication_build_target(...)` es la unica escritura controlada del build: registra el deployment/revision bajo `security definer` sin ampliar grants de tabla.
+
+`npm run dev` y `menu:validate` inspeccionan el borrador vivo para trabajo local. `npm run build` resuelve el target inmutable antes de iniciar Astro, pasa request/revision/hash/version por variables internas del proceso hijo y hace que el lector cargue solo esa revision. En Vercel, `VERCEL_DEPLOYMENT_ID` y `VERCEL_PROJECT_ID` deben llegar juntos para persistir la vinculacion auditable del deployment.
 
 ## Validacion local y read-only
 
@@ -123,8 +146,11 @@ Estado esperado:
 - `menu_content` y `app_private` no tienen grants client-facing para `anon` o `authenticated`.
 - El Data API expone de `public.menu_availability_overlays` solo `menu_id`, `section_id`, `item_id` y `available_override`; las escrituras pasan por RPCs.
 - `public.staff_users` tiene RLS y solo se accede mediante las policies/helpers de staff.
-- Los helpers de publicacion siguen ejecutables solo por `service_role`.
-- El fingerprint actual de la base coincide con el fingerprint embebido en `/admin/` desplegado. El ultimo publish exitoso es evidencia de auditoria, no la fuente unica del estado pendiente.
+- Los helpers de transicion de publicacion siguen ejecutables solo por `service_role`.
+- `menu_build_ci` puede ejecutar hash, target y revision, pero no leer directamente las tablas privadas de publicacion.
+- No hay mas de una solicitud `queued`/`triggered`; cada revision conserva un snapshot cuyo hash coincide, su conjunto exacto de eventos capturados y cada build apunta a una revision existente.
+- Cada promocion conserva evidencia append-only, fuente, deployment/revision/hash/proyecto coincidentes y `request_id` opcional. El puntero desplegado corresponde a la evidencia mas nueva por tiempo de evento, no necesariamente a la ultima solicitud.
+- Una solicitud `succeeded` tiene evidencia de promocion coincidente; un rollback o re-promocion sin solicitud sigue actualizando correctamente el estado desplegado.
 
 ## Procedimientos remotos
 
@@ -137,7 +163,8 @@ Estado esperado:
 3. Si el remoto conserva el historial pre-squash, no ejecutar `20260707000000_prelaunch_baseline.sql` sobre esa base.
 4. Si se autoriza alinear el historial, reparar solo `supabase_migrations.schema_migrations` despues de probar la equivalencia; no reaplicar el baseline.
 5. Aplicar exclusivamente migraciones incrementales posteriores pendientes.
-6. Repetir audits, build y checks despues de la mutacion.
+6. Para esta migracion, completar el bootstrap y el rollout coordinado de la seccion siguiente antes de ejecutar un build de la nueva aplicacion.
+7. Repetir audits, build y checks despues de la mutacion.
 
 El remoto de handoff puede conservar el historial pre-squash completo sin representar drift. La equivalencia se determina por schema, contenido, funciones, permisos, policies y fingerprint, no por tener una sola fila de migracion.
 
@@ -160,7 +187,7 @@ Si la CA cambia o el test informa menos de un ano de vigencia restante, descarga
 2. Verificar que el baseline y cualquier migracion posterior terminen sin errores.
 3. Ejecutar ambos audits SQL, `npm run menu:validate` y el resto de la secuencia de validacion.
 4. Crear el primer usuario en Supabase Auth y agregar su fila `admin` a `public.staff_users` mediante SQL privilegiado.
-5. Configurar los secretos de la Function y desplegar `publish-menu-changes`.
+5. Inicializar la revision desplegada, configurar los secretos de la Function y desplegar `publish-menu-changes` segun el rollout coordinado.
 
 La creacion del primer admin no se realiza desde browser RLS y `service_role` no tiene acceso directo a `public.staff_users`.
 
@@ -187,11 +214,18 @@ npm run supabase:link -- --project-ref <project-ref>
 npm run supabase:migrations
 ```
 
-Configurar secretos es una mutacion remota. Ejemplo, solo despues de confirmar el proyecto vinculado:
+Configurar secretos es una mutacion remota. Ejemplo, solo despues de confirmar el proyecto vinculado y reemplazar todos los placeholders:
 
 ```bash
-npm run supabase -- secrets set VERCEL_DEPLOY_HOOK_URL=...
+npm run supabase -- secrets set \
+  VERCEL_DEPLOY_HOOK_URL=... \
+  PUBLISH_ALLOWED_ORIGINS=https://elfaraoncatering.com.ar \
+  PUBLISH_STALE_SECONDS=900 \
+  PUBLISH_CANONICAL_ADMIN_URL=https://elfaraoncatering.com.ar/admin/ \
+  VERCEL_PROJECT_ID=...
 ```
+
+Agregar `VERCEL_WEBHOOK_SECRET`, `VERCEL_TEAM_ID` y `VERCEL_DEPLOYMENT_BYPASS_SECRET` solo cuando se configure el Account Webhook o el proyecto los requiera. El bypass debe permitir unicamente la lectura server-side necesaria para verificar el artefacto y nunca debe incorporarse al HTML.
 
 El deploy tambien es una accion remota y requiere autorizacion explicita:
 
@@ -202,6 +236,24 @@ npm run supabase:functions:deploy
 Ese script despliega unicamente `publish-menu-changes` con `--no-verify-jwt`, en linea con `supabase/config.toml`.
 
 La Function fija `@supabase/supabase-js` a una version exacta en su import. Las actualizaciones deben conservar ese pin, respetar la cuarentena de versiones nuevas y pasar `npm run test:tools`, el chequeo Deno de la Function, `npm run check:js` y `npm run lint` antes de considerar un deploy.
+
+### Rollout de publicacion inmutable
+
+Este rollout coordina Supabase y Vercel y requiere autorizacion explicita para cada proyecto remoto. Deshabilitar temporalmente la accion de publicar antes de aplicar la migracion y mantenerla deshabilitada hasta completar bootstrap, Edge Function y aplicacion nueva: el admin y la Function anteriores no son compatibles con las nuevas firmas y fases.
+
+1. Registrar el hash real servido por el `/admin/` de produccion actual (`data-deployed-content-hash`) y confirmar que corresponde al dominio canonico.
+2. Aplicar `20260812040001_add_immutable_menu_publications.sql` y, con una sesion privilegiada, ejecutar una sola vez `select * from public.bootstrap_menu_publication_deployment('<hash-servido>');`. La funcion falla sin mutar si el contenido vivo ya difiere del artefacto servido.
+3. Configurar los secretos obligatorios, incluido `PUBLISH_CANONICAL_ADMIN_URL`, y desplegar `publish-menu-changes`.
+4. Confirmar que Vercel expone `VERCEL_DEPLOYMENT_ID` y `VERCEL_PROJECT_ID` durante el build. `npm run build` exige ambos juntos en Vercel y registra el target antes de construir.
+5. Desplegar la aplicacion nueva y recien entonces volver a habilitar publicaciones.
+6. Verificar en un ciclo real que la solicitud pase por `queued`/`triggered`, que el build use la revision solicitada y que el polling del admin llame `POST /status`, reconcilie el artefacto canonico y cambie a `succeeded` sin recarga ni paso manual.
+7. Recomendado en Vercel Pro/Enterprise: crear un Account Webhook filtrado al proyecto para `deployment.promoted`, con endpoint `https://<project-ref>.supabase.co/functions/v1/publish-menu-changes/vercel-webhook`. Guardar el secreto generado como `VERCEL_WEBHOOK_SECRET`; si se restringe por team, configurar tambien `VERCEL_TEAM_ID`. En planes sin Account Webhooks, conservar solo el probe canonico.
+8. Si Deployment Protection impide leer URLs de deployment para el webhook opcional, crear un bypass secret acotado y guardarlo como `VERCEL_DEPLOYMENT_BYPASS_SECRET`. El probe canonico no lo necesita.
+9. Mientras una publicacion esta activa, guardar un cambio adicional y confirmar que el admin indique que queda para la proxima publicacion; despues confirmar retry frente a un fallo controlado.
+10. Verificar una re-promocion mediante webhook y un rollback mediante el probe canonico al iniciar sesion o volver al panel: la evidencia debe registrarse aun sin solicitud asociada y el puntero desplegado debe seguir el `event_created_at` mas reciente.
+11. Repetir `npm run supabase:audit`, `npm run menu:validate`, build y escaneo de secretos.
+
+Aplicar la migracion, cargar secretos, desplegar Function/aplicacion, crear el Account Webhook opcional o ejecutar una publicacion real son cambios externos separados. La presencia de este procedimiento no los autoriza.
 
 ## Archivos de esta carpeta
 

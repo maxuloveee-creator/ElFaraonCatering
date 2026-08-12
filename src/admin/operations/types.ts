@@ -12,8 +12,7 @@ export interface AdminOperationContext {
     statusText?: string | ((state: AdminOperationalState) => string),
     statusTone?: StatusTone,
   ): Promise<AdminOperationalState>;
+  setStatus(text: string, tone: StatusTone): void;
   requireSession(): Promise<AuthSession>;
   publishMenuChanges(session: AuthSession): Promise<RpcResult>;
-  markCurrentPublicationRequested(): void;
-  rememberPublishCooldown(result: RpcResult): void;
 }

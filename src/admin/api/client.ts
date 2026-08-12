@@ -12,6 +12,8 @@ export interface AdminApiConfig {
   supabaseAnonKey: string;
 }
 
+const publicationStateRequestTimeoutMs = 8_000;
+
 export async function signInWithPassword(
   config: AdminApiConfig,
   email: string,
@@ -120,8 +122,45 @@ export async function refreshSessionRequest(
 export async function loadAdminOperationalState(
   config: AdminApiConfig,
   session: AuthSession,
+  reconcileCanonicalArtifact = false,
 ): Promise<AdminOperationalState> {
-  return callRpc<AdminOperationalState>(config, session, "get_admin_operational_state", {});
+  const state = await loadCanonicalAdminOperationalState(config, session);
+
+  if (state.publication?.phase !== "publishing" && !reconcileCanonicalArtifact) {
+    return state;
+  }
+
+  await probeMenuPublicationStatus(config, session).catch(() => undefined);
+
+  return loadCanonicalAdminOperationalState(config, session);
+}
+
+const loadCanonicalAdminOperationalState = (
+  config: AdminApiConfig,
+  session: AuthSession,
+): Promise<AdminOperationalState> =>
+  callRpc<AdminOperationalState>(
+    config,
+    session,
+    "get_admin_operational_state",
+    {},
+    AbortSignal.timeout(publicationStateRequestTimeoutMs),
+  );
+
+export async function probeMenuPublicationStatus(
+  config: AdminApiConfig,
+  session: AuthSession,
+): Promise<void> {
+  await fetch(`${config.supabaseUrl}/functions/v1/publish-menu-changes/status`, {
+    method: "POST",
+    headers: {
+      apikey: config.supabaseAnonKey,
+      Authorization: `Bearer ${session.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    credentials: "omit",
+    signal: AbortSignal.timeout(publicationStateRequestTimeoutMs),
+  });
 }
 
 export async function callMutation(
@@ -168,6 +207,7 @@ async function callRpc<T>(
   session: AuthSession,
   name: string,
   body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/${name}`, {
     method: "POST",
@@ -178,6 +218,7 @@ async function callRpc<T>(
     },
     credentials: "omit",
     body: JSON.stringify(body),
+    signal,
   });
   const responseBody = await readJsonBody(response);
 

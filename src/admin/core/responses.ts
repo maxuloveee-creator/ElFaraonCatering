@@ -6,9 +6,9 @@ import type {
 
 const mutationResultMessages: Record<string, string> = {
   permission_denied: "No tenés permisos para esta acción.",
-  publish_queued: "Publicación en curso. Los cambios se están subiendo al menú. (Recargá esta página 'admin' en 30 segundos para actualizar el estado.)",
-  publish_recently_queued: "Ya se pidió una publicación hace poco.",
-  publish_failed: "No se pudo iniciar la publicación. Intentá de nuevo en unos minutos.",
+  publish_queued: "Publicación en curso. Podés seguir trabajando.",
+  publish_already_active: "Ya hay una publicación en curso. Podés seguir trabajando.",
+  publish_failed: "No se pudo publicar. Tus cambios siguen guardados.",
   available_override_required: "La disponibilidad seleccionada no es válida.",
   availability_targets_required: "Seleccioná al menos un item.",
   invalid_availability_target: "Alguno de los items seleccionados ya no existe.",
@@ -66,16 +66,6 @@ const mutationResultMessages: Record<string, string> = {
 
 export function resultMessage(result: RpcResult): string {
   return mutationResultMessages[result.message] ?? result.message.replaceAll("_", " ");
-}
-
-export function formatCooldownSuffix(result: RpcResult): string {
-  const seconds = result.cooldown_seconds_remaining;
-
-  if (typeof seconds !== "number" || !Number.isSafeInteger(seconds) || seconds < 0) {
-    return "";
-  }
-
-  return ` ${seconds} segundos`;
 }
 
 export async function readJsonBody(response: Response): Promise<unknown> {

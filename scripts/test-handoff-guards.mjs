@@ -65,6 +65,24 @@ test("publish Edge Function pins the Supabase client to an exact version", async
   );
 });
 
+test("publish Edge Function validates confirmation configuration before reservation", async () => {
+  const functionSource = await readFile(publishFunctionPath, "utf8");
+  const publishHandler = functionSource.slice(
+    functionSource.indexOf("const handleOperatorPublish"),
+    functionSource.indexOf("Deno.serve"),
+  );
+  const configurationCheckIndex = publishHandler.indexOf(
+    "const confirmationConfig = getPublicationConfirmationConfiguration()",
+  );
+  const reservationIndex = publishHandler.indexOf('"reserve_menu_publish_request"');
+
+  assert.notEqual(configurationCheckIndex, -1);
+  assert.notEqual(reservationIndex, -1);
+  assert.ok(configurationCheckIndex < reservationIndex);
+  assert.match(functionSource, /getRequiredEnv\("VERCEL_PROJECT_ID"\)/);
+  assert.match(functionSource, /Deno\.env\.get\("PUBLISH_CANONICAL_ADMIN_URL"\)/);
+});
+
 test("menu image optimizer declares and loads sharp directly", async () => {
   const packageManifest = JSON.parse(
     await readFile(path.join(repoRoot, "package.json"), "utf8"),
@@ -118,6 +136,19 @@ test("dist secret guard detects Vercel Deploy Hook URLs without their environmen
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /api\.vercel\.com\/v1\/integrations\/deploy\//);
+});
+
+test("dist secret guard detects publication webhook and bypass secrets", async () => {
+  for (const [name, value] of [
+    ["VERCEL_WEBHOOK_SECRET", "webhook-secret-value"],
+    ["VERCEL_DEPLOYMENT_BYPASS_SECRET", "bypass-secret-value"],
+  ]) {
+    const result = await runDistGuard(value, { [name]: value });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(`${name} (raw|encoded) value`));
+    assert.equal(result.stderr.includes(value), false);
+  }
 });
 
 test("dist secret guard accepts safe static output", async () => {
@@ -176,6 +207,8 @@ function runNode(scriptPath, cwd, extraEnv) {
   delete env.SUPABASE_DB_URL;
   delete env.SUPABASE_AUDIT_DB_URL;
   delete env.VERCEL_DEPLOY_HOOK_URL;
+  delete env.VERCEL_WEBHOOK_SECRET;
+  delete env.VERCEL_DEPLOYMENT_BYPASS_SECRET;
 
   return spawnSync(process.execPath, [scriptPath], {
     cwd,

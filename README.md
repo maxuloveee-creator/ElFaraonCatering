@@ -27,7 +27,7 @@ El contenido build-time incluye menu del dia, servicio activo por local, parrill
 
 `/admin/` usa Supabase Auth, lee mediante `get_admin_operational_state()` y escribe mediante RPCs controladas. Permite administrar disponibilidad, servicio del dia, parrilla, contenido del menu fijo, opciones, precios y publicacion. No es un CMS institucional ni una interfaz de gestion de empleados
 
-Los cambios de disponibilidad impactan en runtime. Los demas cambios del admin necesitan un nuevo build/deploy. La Edge Function `publish-menu-changes` es el puente entre el admin y el Vercel Deploy Hook; el hook y las credenciales de servicio nunca llegan al navegador.
+Los cambios de disponibilidad impactan en runtime. Los demas cambios del admin necesitan un nuevo build/deploy. Al publicar, la base captura una revision JSONB inmutable y Vercel construye exactamente esa revision; los cambios que el operador siga guardando quedan para la publicacion siguiente. La Edge Function `publish-menu-changes` dispara el Deploy Hook y confirma el resultado cuando su probe server-side verifica la revision servida por el admin canonico. El probe tambien se ejecuta de forma acotada al iniciar sesion o volver al panel para reconciliar rollbacks. Un webhook firmado de Vercel puede acelerar las promociones, pero no es requisito para el flujo del operador. El hook, las firmas y las credenciales de servicio nunca llegan al navegador.
 
 Para el modelo de datos, baseline, permisos, auditorias y procedimientos remotos, consultar el [runbook de Supabase](./docs/supabase/README.md) y el [diagrama del schema](./docs/supabase/schema-diagram.md).
 
@@ -69,6 +69,8 @@ npm run build
 npm run preview
 ```
 
+`npm run dev` lee el contenido editable actual para previsualizacion local. `npm run build` resuelve la revision inmutable configurada en la base y falla si el estado de publicacion aun no fue inicializado; no publica silenciosamente borradores vivos.
+
 ### Variables de entorno
 
 Usar [.env.example](./.env.example) como referencia y guardar valores locales en `.env.local`, que esta ignorado por Git.
@@ -91,7 +93,7 @@ Las conexiones Postgres privadas validan la CA y el hostname mediante la factory
 | Script | Uso |
 | --- | --- |
 | `npm run dev` | Levanta Astro en desarrollo. |
-| `npm run build` | Genera `dist/` con contenido leido de `menu_content`. Requiere `SUPABASE_DB_URL` y las dos variables `PUBLIC_SUPABASE_*`. |
+| `npm run build` | Resuelve la revision de publicacion y genera `dist/` con su snapshot inmutable. Requiere `SUPABASE_DB_URL`, una publicacion inicializada y las dos variables `PUBLIC_SUPABASE_*`. |
 | `npm run preview` | Sirve el build local. |
 | `npm run check` | Ejecuta `astro check`. |
 | `npm run check:js` | Valida sintaxis de JS/MJS fuera del typecheck de Astro. |
@@ -169,6 +171,10 @@ Antes de activar o cambiar SSL Enforcement en Supabase, ejecutar tambien `npm ru
 
 ## Despliegue
 
-El deploy de la aplicacion es estatico en Vercel. No hay adapter de servidor, SSR, API routes ni Vercel Functions. La unica funcion server-side del sistema es la Edge Function Supabase `publish-menu-changes`, dedicada a solicitar el rebuild del contenido operativo.
+El deploy de la aplicacion es estatico en Vercel. No hay adapter de servidor, SSR, API routes ni Vercel Functions. La unica funcion server-side del sistema es la Edge Function Supabase `publish-menu-changes`: reserva una revision inmutable, solicita el rebuild y reconcilia el artefacto servido mediante `POST /status`. Opcionalmente recibe en `/vercel-webhook` eventos firmados `deployment.promoted`.
+
+El admin muestra estados simples (`cambios pendientes`, `publicando`, `publicado` o `fallo`) desde la base y actualiza automaticamente el progreso. No depende de cooldowns, hashes visibles, recargas manuales ni estado guardado en el navegador; el operador puede seguir editando mientras una revision anterior se publica.
+
+La migracion, el bootstrap inicial, los secretos de Supabase, la Edge Function y el primer despliegue forman un rollout coordinado. El Account Webhook de Vercel es una mejora opcional para planes compatibles. Son mutaciones externas y se ejecutan solo con autorizacion explicita siguiendo el [runbook de Supabase](./docs/supabase/README.md#rollout-de-publicacion-inmutable).
 
 El dominio canonico y unico origen operativo del admin es `https://elfaraoncatering.com.ar`. La configuracion remota de Supabase Auth y el secreto `PUBLISH_ALLOWED_ORIGINS` deben mantenerse alineados con `supabase/config.toml` y `.env.example`.

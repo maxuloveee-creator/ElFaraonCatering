@@ -32,9 +32,10 @@ interface AdminSessionContext {
     statusText?: AdminStatusText,
     statusTone?: StatusTone,
     focus?: RenderFocusMode,
+    reconcileCanonicalArtifact?: boolean,
   ): Promise<AdminOperationalState>;
   renderCurrentView(options?: RenderOptions): void;
-  resetPublicationState(): void;
+  stopPublicationPolling(): void;
   runBusy(action: () => Promise<void>, busyText?: string): Promise<void>;
   setAdminState(state: AdminOperationalState | null): void;
   setStatus(text: string, tone: StatusTone): void;
@@ -69,7 +70,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
       return;
     }
 
-    await context.loadAdminState(undefined, "neutral", "view");
+    await context.loadAdminState(undefined, "neutral", "view", true);
   }
 
   function getCurrentSession(): AuthSession | null {
@@ -97,7 +98,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
       currentSession = await signInWithPassword(context.config, email, password);
       authView = "login";
       saveStoredSession(currentSession);
-      await context.loadAdminState("Sesión iniciada.", "success", "view");
+      await context.loadAdminState("Sesión iniciada.", "success", "view", true);
     }, "Iniciando sesión...");
   }
 
@@ -140,7 +141,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
       await updatePassword(session, password);
       saveStoredSession(session);
       authView = "login";
-      await context.loadAdminState("Contraseña actualizada.", "success", "view");
+      await context.loadAdminState("Contraseña actualizada.", "success", "view", true);
     }, "Actualizando contraseña...");
   }
 
@@ -166,7 +167,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
   async function logout(): Promise<void> {
     const session = currentSession;
     clearStoredSession();
-    context.resetPublicationState();
+    context.stopPublicationPolling();
     currentSession = null;
     context.setAdminState(null);
     authView = "login";
@@ -195,6 +196,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
     const storedSession = readStoredSession();
 
     if (!storedSession) {
+      context.stopPublicationPolling();
       return null;
     }
 
@@ -210,7 +212,7 @@ export function createAdminSessionController(context: AdminSessionContext) {
 
     if (!refreshedSession) {
       clearStoredSession();
-      context.resetPublicationState();
+      context.stopPublicationPolling();
       return null;
     }
 

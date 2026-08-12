@@ -22,16 +22,19 @@
 - Admin reads use `get_admin_operational_state()`; writes use approved RPCs. Never grant browser access to `menu_content`/`app_private`.
 - Data API migrations include explicit `revoke`/`grant`; grant minimal roles/columns, enable RLS/exact policies, and revoke non-contract access.
 - Public functions callable by `anon`/`authenticated` stay `security invoker`; privileged bodies stay outside exposed schemas.
-- Exception: `reserve_menu_publish_request(...)`/`complete_menu_publish_request(...)` are service-role-only, revoked from `anon`/`authenticated`. Moving them needs explicit refactor scope.
+- Publication transition helpers (`bootstrap_menu_publication_deployment`, `reserve_menu_publish_request`, `start_menu_publish_request`, `fail_menu_publish_request`, and `confirm_menu_publish_deployment`) are service-role-only and revoked from `anon`/`authenticated`.
 - Preserve `can_edit_menu_content()`/`can_publish_menu()` privileges. Build-time `available` stays `true`; runtime unavailability uses only the overlay.
 
 ### Publication
 
-- `publish-menu-changes` is the only Edge Function. It validates Auth/permission, uses service-role-only helpers, audits fingerprints, and calls the deploy hook.
+- `publish-menu-changes` is the only Edge Function. It validates Auth/permission, stores an immutable JSONB revision, triggers Vercel, reconciles the canonical artifact through authenticated `POST /status`, and optionally handles the signed, project-scoped Vercel promotion webhook route.
 - No `pg_net`, other Function, exposed hook, or alternate publication path without explicit architecture scope.
 - Keep platform JWT verification disabled as configured. Deploying the Function requires an explicit user request.
-- Build-time RPC changes may log private `menu_change_events`; publication links included events. Runtime availability stays outside this log.
-- Production-current means database fingerprint equals deployed-admin fingerprint, not merely a publish record.
+- Build-time RPC changes may log private `menu_change_events`; only a verified promoted publication links included events. Runtime availability stays outside this log.
+- The Deploy Hook response transitions `queued` to `triggered`, never directly to `succeeded`. Success requires a verified canonical probe or signed `deployment.promoted` event whose served `/admin/` artifact matches deployment, revision, hash, and project.
+- Promotion evidence is append-only. Re-promotions and rollbacks update the deployed revision by evidence time even when they do not correspond to an active publication request. Vercel `deployment.promoted` does not cover rollbacks; the throttled canonical probe at login/focus must reconcile them.
+- Keep at most one `queued`/`triggered` request. Operators may keep editing during it; those newer edits remain pending for the next immutable revision.
+- `menu_build_ci` may execute only the publication target/revision/hash functions needed by builds; never grant it direct SELECT on private publication tables.
 
 ## Sensitive/generated artifacts
 

@@ -20,10 +20,11 @@ flowchart TD
 
   DB --> MC["menu_content<br/>estructura y operacion build-time"]
   DB --> PUB["public<br/>overlay runtime, staff y RPCs"]
-  DB --> PRIV["app_private<br/>auditoria privada, fingerprints e implementaciones definer"]
+  DB --> PRIV["app_private<br/>auditoria, revisiones inmutables e implementaciones definer"]
   DB --> AUTH["auth<br/>Supabase-managed"]
 
-  MC --> BUILD["Astro build<br/>SUPABASE_DB_URL"]
+  MC -->|"captura transaccional"| PRIV
+  PRIV -->|"target + snapshot exactos"| BUILD["Astro build<br/>SUPABASE_DB_URL"]
   BUILD --> STATIC["HTML/JS estatico<br/>/menu/corpo y /menu/teleinde"]
   PUB --> MENU_CLIENT["Cliente menu<br/>solo disponibilidad"]
   PUB --> ADMIN_CLIENT["/admin/ estatico<br/>RPCs operativas"]
@@ -172,8 +173,13 @@ flowchart LR
   READ_RPC["get_admin_operational_state()<br/>lectura admin"]
   WRITE_RPCS["RPCs operativas<br/>edicion controlada"]
   EDGE["Supabase Edge Function<br/>publish-menu-changes"]
-  PRIVATE["app_private<br/>auditoria privada, fingerprints e implementaciones definer"]
-  VERCEL["Vercel Deploy Hook<br/>secreto en Functions"]
+  REVISIONS["menu_publication_revisions<br/>snapshots JSONB inmutables"]
+  REVISION_EVENTS["menu_publication_revision_events<br/>cambios incluidos exactamente"]
+  REQUESTS["menu_publish_requests + state<br/>queued / triggered / succeeded / failed"]
+  BUILDS["menu_publication_builds<br/>deployment -> revision"]
+  PROMOTIONS["menu_publication_promotions<br/>evidencia append-only"]
+  VERCEL["Vercel<br/>Deploy Hook + webhook opcional"]
+  BUILD["Astro build estatico<br/>revision exacta"]
   ADMIN_UI["/admin/ estatico<br/>CMS operativo de menu"]
   STATIC["HTML estatico<br/>data-menu-id / data-section-id / data-item-id"]
 
@@ -188,9 +194,21 @@ flowchart LR
   READ_RPC -->|"estado operativo filtrado"| ADMIN_UI
   WRITE_RPCS -->|"writes controlados"| OVERLAYS
   WRITE_RPCS -->|"writes build-time"| MENU_CONTENT["menu_content"]
-  WRITE_RPCS -->|"change events build-time"| PRIVATE
-  EDGE -->|"reserve/complete publish requests"| PRIVATE
+  WRITE_RPCS -->|"change events build-time"| REQUESTS
+  EDGE -->|"reserva snapshot"| REVISIONS
+  REQUESTS -->|"captura membresia"| REVISION_EVENTS
+  EDGE -->|"queued -> triggered"| REQUESTS
   EDGE -->|"POST server-side"| VERCEL
+  REQUESTS -->|"target activo"| BUILD
+  REVISIONS -->|"snapshot por UUID"| BUILD
+  BUILD -->|"registra deployment"| BUILDS
+  BUILD -->|"artefacto estatico"| VERCEL
+  VERCEL -->|"webhook firmado"| EDGE
+  ADMIN_UI -->|"POST /status"| EDGE
+  EDGE -->|"probe admin canonico"| VERCEL
+  EDGE -->|"verifica deployment del webhook"| VERCEL
+  EDGE -->|"evidencia verificada"| PROMOTIONS
+  PROMOTIONS -->|"event time mas nuevo"| REQUESTS
   OVERLAYS -. "IDs logicos" .-> STATIC
 
   classDef runtime fill:#f3f8ee,stroke:#446b2f,color:#223815;
@@ -199,14 +217,14 @@ flowchart LR
   classDef platform fill:#f6f6f6,stroke:#777,color:#333;
 
   class STAFF,OVERLAYS,READ_RPC,WRITE_RPCS,EDGE,ADMIN_UI runtime;
-  class STATIC,MENU_CONTENT structural;
-  class PRIVATE private;
+  class STATIC,MENU_CONTENT,BUILD structural;
+  class REVISIONS,REVISION_EVENTS,REQUESTS,BUILDS,PROMOTIONS private;
   class AUTH_USERS,VERCEL platform;
 ```
 
 ## Frontera build-time/runtime
 
-- `menu_content` se lee para el menu publico solo durante build/validacion con `SUPABASE_DB_URL`.
+- `menu_content` es la fuente editable build-time. Al solicitar publicacion se captura una revision JSONB inmutable; un build de publicacion lee esa revision, no las tablas vivas.
 - Menu del dia, descripcion, servicio activo por local, catalogo, secciones, imagenes y precios son datos build-time.
 - Las columnas build-time `available` no representan faltantes operativos; se conservan siempre `true` por compatibilidad.
 - `menu_daily_items` modela dos opciones planas: comun y vegetariano.
@@ -222,8 +240,12 @@ flowchart LR
 - `staff_users.default_availability_profile_id` solo preselecciona el filtro de disponibilidad de `/admin/`; no restringe permisos por local.
 - Las escrituras del admin deben pasar por RPCs operativas con respuesta `ok`, `changed`, `requires_redeploy`, `operation` y `message`.
 - Las RPCs publicas del admin son wrappers `security invoker`; las implementaciones privilegiadas viven en `app_private`, que no debe exponerse por PostgREST.
-- `publish-menu-changes` es la frontera server-side para publicar cambios build-time: valida Auth, usa `can_publish_menu()`, registra auditoria privada con fingerprint del contenido y llama el Deploy Hook desde secretos.
-- Las RPCs build-time registran eventos privados en `app_private.menu_change_events`; al completarse una publicacion exitosa, esos eventos quedan enlazados a `app_private.menu_publish_requests`. La disponibilidad runtime no participa de ese log de deploy.
-- El estado `publication` expone el fingerprint build-time actual; `/admin/` lo compara contra el fingerprint embebido en el deploy estatico actual para decidir si falta publicar.
+- `publish-menu-changes` es la unica frontera server-side de publicacion: valida Auth, reserva la revision, llama el Deploy Hook y recibe el webhook firmado en `/vercel-webhook`.
+- Solo puede existir una solicitud activa (`queued` o `triggered`). Un `2xx` del hook significa `triggered`, no exito.
+- `app_private.menu_publication_builds` fija cada `VERCEL_DEPLOYMENT_ID` a una solicitud opcional, revision, hash y proyecto.
+- Mientras una publicacion esta activa, el polling del admin llama `POST /status`; tambien lo hace al iniciar sesion o recuperar foco, con throttle de un minuto. La misma Function verifica el `/admin/` canonico y registra promociones o rollbacks sin exigir Account Webhooks. El webhook `deployment.promoted` firmado acelera promociones en planes compatibles, pero Vercel no lo emite para rollbacks.
+- `app_private.menu_publication_promotions` conserva evidencia append-only con fuente e ID de evidencia. `request_id` puede ser nulo para re-promociones o rollbacks, y el puntero desplegado sigue la evidencia mas reciente por `event_created_at`.
+- Las RPCs build-time registran eventos privados en `app_private.menu_change_events`; `menu_publication_revision_events` captura exactamente cuales pertenecen al snapshot. Solo esos eventos se enlazan al confirmar la promocion correcta. La disponibilidad runtime no participa de ese log de deploy.
+- El estado `publication` expone una fase server-side (`up_to_date`, `changes_pending`, `publishing` o `failed`), el vencimiento de la solicitud activa y si hubo ediciones posteriores al snapshot. El browser consulta con alta frecuencia al inicio y luego baja a una vez por minuto hasta observar un estado terminal; pausa cuando la pestaña no esta visible y no usa storage ni cooldown como verdad.
 - `public.editor_profiles` fue eliminada luego del backfill inicial; `staff_users` es la unica fuente de permisos operativos.
 - El cliente no debe consultar estructura, precios, menu del dia, servicio activo, catalogo, secciones, imagenes ni textos estructurales.

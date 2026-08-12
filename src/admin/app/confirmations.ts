@@ -1,6 +1,6 @@
 export function confirmPublishChanges(): boolean {
   return window.confirm(
-    "Vas a subir al menú todos los cambios guardados ¿Continuar?",
+    "Vas a publicar todos los cambios guardados. El menú se actualizará automáticamente cuando termine. ¿Continuar?",
   );
 }
 

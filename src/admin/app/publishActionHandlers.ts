@@ -2,13 +2,14 @@ import type { AdminActionHandlerContext } from "./actionHandlers";
 import { confirmPublishChanges } from "./confirmations";
 
 export async function handlePublishAction(context: AdminActionHandlerContext): Promise<void> {
-  const cooldownSecondsRemaining = context.publicationState.getCooldownSecondsRemaining();
+  const publication = context.getCurrentState()?.publication;
 
-  if (cooldownSecondsRemaining > 0) {
-    context.setStatus(
-      `Ya se pidió una publicación hace poco (${cooldownSecondsRemaining} segundos restantes). Los cambios quedan guardados; volvé a publicar cuando esté disponible.`,
-      "neutral",
-    );
+  if (
+    !publication
+    || publication.phase === "up_to_date"
+    || publication.phase === "publishing"
+    || (publication.phase === "failed" && !publication.can_retry)
+  ) {
     return;
   }
 

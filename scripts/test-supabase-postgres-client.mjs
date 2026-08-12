@@ -18,6 +18,7 @@ const trustedCaPath = path.join(
 const minimumCertificateLifetimeMs = 365 * 24 * 60 * 60 * 1000;
 const expectedFactoryConsumers = [
   "scripts/audit-supabase-readonly.mjs",
+  "scripts/build-menu-publication.mjs",
   "scripts/menu-content-supabase.mjs",
   "scripts/validate-menu-supabase.mjs",
   "src/utils/menuSupabaseContent.ts",
