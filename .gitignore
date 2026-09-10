@@ -22,7 +22,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
-!.env.test
+!.env.*.example
 
 # TypeScript
 *.tsbuildinfo
@@ -71,7 +71,6 @@ admin-auth-state.json
 # Misc
 *.local
 .cache/
-.codex/
 .codex-doc-review/
 .codex-remote-attachments/
 .claude/
