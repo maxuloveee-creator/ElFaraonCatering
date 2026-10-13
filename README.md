@@ -18,6 +18,12 @@ La landing publica metadatos Open Graph y Twitter con una imagen social propia, 
 
 Los menús se publican con `X-Robots-Tag: noindex, follow` y el admin con `X-Robots-Tag: noindex, nofollow`. `vercel.json` versiona esos headers, las redirecciones de rutas, la canonicalización del alias `vercel.app` y los demás headers de seguridad; la redirección de `www` pertenece a Vercel Domains.
 
+La firma compartida `src/components/VntSignature.astro` enlaza a
+`https://vntagencia.com/r/el-faraon`, cuyo destino administra VNT.
+`data-vnt-signature` identifica la firma para su verificación; el SVG y la
+tipografía se sirven desde este proyecto en la landing, los menús, el admin y
+la página 404.
+
 ## Arquitectura
 
 El sitio usa Astro con output estático en Vercel. Supabase tiene dos responsabilidades separadas:
