@@ -29,22 +29,22 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.2.9",
+    "astro": "^7.3.5",
     "tailwindcss": "^4.3.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@eslint/js": "^10.0.1",
     "deno": "2.9.6",
-    "eslint": "^10.9.1",
-    "globals": "^17.11.0",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "postgres": "^3.4.9",
-    "sharp": "^0.35.3",
-    "supabase": "^2.116.0",
+    "sharp": "^0.35.5",
+    "supabase": "^2.118.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0",
-    "vite": "^8.2.2"
+    "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.1"
   },
   "overrides": {
     "ajv": "^8.20.0",
