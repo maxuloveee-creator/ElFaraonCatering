@@ -1,0 +1,79 @@
+---
+interface Props {
+  variant?: "white" | "black";
+}
+
+const { variant = "white" } = Astro.props;
+---
+
+<a
+  class:list={["vnt-signature", { "vnt-signature--black": variant === "black" }]}
+  href="https://www.instagram.com/vnt.agencia/"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Creado por VNT — Instagram (se abre en otra pestaña)"
+>
+  <span lang="en">created by</span>
+  <img
+    src={`/brand/vnt/logo-signature-${variant}.svg`}
+    alt=""
+    width="2150"
+    height="589"
+    loading="lazy"
+    decoding="async"
+  />
+</a>
+
+<style>
+  @font-face {
+    font-family: "Host Grotesk";
+    src: url("/fonts/host-grotesk/HostGrotesk-VariableFont_wght.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 300 800;
+    font-display: swap;
+  }
+
+  .vnt-signature {
+    display: inline-flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    max-width: 100%;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    color: #b7b3af;
+    font-family: "Host Grotesk", Arial, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .vnt-signature--black {
+    color: #5a524d;
+  }
+
+  .vnt-signature span {
+    flex-shrink: 0;
+  }
+
+  .vnt-signature img {
+    display: block;
+    flex-shrink: 0;
+    width: auto;
+    height: 1.375rem;
+  }
+
+  .vnt-signature:hover span {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .vnt-signature:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+    border-radius: 2px;
+  }
+</style>

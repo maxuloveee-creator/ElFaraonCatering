@@ -2,6 +2,7 @@
 import type { MenuProfileData, MenuSectionData } from "../types/menu";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MenuSection from "./MenuSection.astro";
+import VntSignature from "./VntSignature.astro";
 import { getMenuNavSectionLabel } from "../menu/menuRules";
 
 interface Props {
@@ -152,6 +153,10 @@ const getSectionNavLabel = (section: MenuSectionData) => getMenuNavSectionLabel(
         />
       ))}
     </div>
+
+    <footer class="menu-page__footer">
+      <VntSignature />
+    </footer>
 
     {contactFact?.link && (
       <a

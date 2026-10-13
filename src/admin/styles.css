@@ -66,10 +66,17 @@
   --admin-shadow-rgb: 42 38 34;
 }
 
+  .admin-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
+    background: var(--admin-bg);
+  }
+
   .admin-root {
     display: grid;
+    flex: 1;
     place-items: center;
-    min-height: 100vh;
     background: var(--admin-bg);
     color: var(--admin-text-strong);
     font-family: var(--font-body);
@@ -90,8 +97,6 @@
   .admin-denied {
     display: grid;
     align-content: center;
-    min-height: 100vh;
-    min-height: 100svh;
     gap: 1rem;
   }
 
