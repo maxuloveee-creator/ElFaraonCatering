@@ -1,6 +1,7 @@
 ---
 import "../../admin/styles.css";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import VntSignature from "../../components/VntSignature.astro";
 import { readMenuPublicationBuildMetadata } from "../../utils/menuPublicationBuild.mjs";
 import { loadSupabaseMenuPublicationContentHash } from "../../utils/menuSupabaseContent";
 
@@ -13,6 +14,7 @@ const publicationMetadata = import.meta.env.DEV
 <BaseLayout
   title="Admin operativo | El Faraón Catering"
   description="Panel operativo para preparar menú del día, parrilla, disponibilidad, precios y publicación."
+  bodyClass="admin-body"
 >
   <main
     class="admin-root"
@@ -35,6 +37,10 @@ const publicationMetadata = import.meta.env.DEV
       </div>
     </section>
   </main>
+
+  <footer class="signature-footer">
+    <VntSignature variant="black" />
+  </footer>
 
   <script>
     import "../../admin/main";

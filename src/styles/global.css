@@ -174,7 +174,7 @@
 
   .landing-header__brand img,
   .landing-hero__logo,
-  .landing-footer img {
+  .landing-footer > img {
     display: block;
     width: 100%;
     height: auto;
@@ -575,12 +575,13 @@
     display: grid;
     min-height: 8.5rem;
     place-items: center;
+    gap: 0.5rem;
     box-sizing: border-box;
     padding: 1.5rem 1.25rem;
     background: var(--color-page);
   }
 
-  .landing-footer img {
+  .landing-footer > img {
     width: min(58vw, 14.125rem);
   }
 
@@ -619,10 +620,6 @@
 
     .landing-section--contact {
       min-height: 24.625rem;
-    }
-
-    .landing-footer {
-      height: 8.5rem;
     }
   }
 
@@ -925,7 +922,7 @@
       padding: 1.5rem 1.25rem;
     }
 
-    .landing-footer img {
+    .landing-footer > img {
       width: 10.875rem;
       height: 4.25rem;
       object-fit: contain;
@@ -1118,12 +1115,11 @@
     }
 
     .landing-footer {
-      height: 7.25rem;
       min-height: 7.25rem;
       padding: 1.5rem 1.25rem;
     }
 
-    .landing-footer img {
+    .landing-footer > img {
       width: 10.875rem;
       height: 4.25rem;
       object-fit: contain;
@@ -1212,6 +1208,7 @@
     --color-brand: var(--brand-orange);
     --color-backdrop: color-mix(in srgb, var(--brand-black) 74%, transparent);
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
     min-height: 100vh;
     background: var(--color-page);
@@ -1223,6 +1220,19 @@
     box-sizing: border-box;
     width: 100%;
     padding: 2rem 1rem 7rem;
+  }
+
+  .menu-page__footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+
+  .signature-footer {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: center;
+    padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
   }
 
   .menu-page__hero {
@@ -1269,6 +1279,7 @@
 
   .menu-page__info-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-around;
     gap: 0.75rem;
@@ -1287,6 +1298,7 @@
     align-items: center;
     justify-content: center;
     flex: 0 1 auto;
+    max-width: 100%;
     gap: 0.5rem;
   }
 
@@ -1309,7 +1321,6 @@
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: 0.01em;
-    white-space: nowrap;
   }
 
   .menu-page__info-detail {
@@ -1324,19 +1335,15 @@
     display: grid;
   }
 
-  .menu-page__info-col:first-child .menu-page__info-detail {
-    white-space: nowrap;
-  }
-
   .menu-page__payment-method-row {
     display: block;
-    white-space: nowrap;
   }
 
   .menu-page__sections {
     display: grid;
     gap: 1.9rem;
     margin-top: 1.5rem;
+    overflow-wrap: anywhere;
   }
 
   .menu-whatsapp-button {
@@ -1612,6 +1619,9 @@
   }
 
   .not-found-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
     background: var(--brand-black);
     color: var(--brand-bone);
     color-scheme: dark;
@@ -1620,7 +1630,7 @@
 
   .not-found-page {
     display: grid;
-    min-height: 100vh;
+    flex: 1;
     align-items: center;
     padding: clamp(1.25rem, 5vw, 4rem);
     background: var(--brand-black);
@@ -1643,6 +1653,7 @@
   .not-found-page__copy {
     display: grid;
     gap: 0.85rem;
+    overflow-wrap: anywhere;
   }
 
   .not-found-page__eyebrow {
